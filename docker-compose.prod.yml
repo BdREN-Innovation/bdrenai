@@ -1,0 +1,13 @@
+# Production overlay: run with `docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d`
+# Does NOT load docker-compose.override.yml, so PostgreSQL and Redis have zero published ports.
+services:
+  nginx:
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/nginx/certs:/etc/nginx/certs:ro
+      - ./deploy/nginx/prod-https.conf.template:/etc/nginx/templates/prod-https.conf.template:ro
+  backend:
+    environment:
+      DJANGO_DEBUG: "false"

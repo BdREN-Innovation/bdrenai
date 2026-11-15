@@ -1,0 +1,69 @@
+# bdren.ai (landing + /admin + /api), admin.bdren.ai, and api.bdren.ai routing
+upstream django_backend { server backend:8000;  keepalive 16; }
+upstream next_frontend  { server frontend:3000; keepalive 16; }
+
+# Main BDREN domain: bdren.ai (landing at /, admin at /admin, API at /api/)
+server {
+  listen 80;
+  server_name ${PLATFORM_DOMAIN};
+
+  add_header X-Content-Type-Options nosniff always;
+  add_header X-Frame-Options DENY always;
+  add_header Referrer-Policy strict-origin-when-cross-origin always;
+
+  location /api/ {
+    proxy_pass http://django_backend;
+    include /etc/nginx/templates/proxy_params.inc;
+  }
+
+  location /admin {
+    proxy_pass http://next_frontend;
+    include /etc/nginx/templates/proxy_params.inc;
+  }
+
+  location / {
+    proxy_pass http://next_frontend;
+    include /etc/nginx/templates/proxy_params.inc;
+  }
+}
+
+# Dedicated API vhost: api.bdren.ai -> Django REST API
+server {
+  listen 80;
+  server_name ${API_DOMAIN};
+
+  add_header X-Content-Type-Options nosniff always;
+  add_header X-Frame-Options DENY always;
+  add_header Referrer-Policy strict-origin-when-cross-origin always;
+
+  location / {
+    proxy_pass http://django_backend;
+    include /etc/nginx/templates/proxy_params.inc;
+  }
+}
+
+# Dedicated Admin vhost: admin.bdren.ai -> Next.js Admin Console
+server {
+  listen 80;
+  server_name ${ADMIN_DOMAIN};
+
+  add_header X-Content-Type-Options nosniff always;
+  add_header X-Frame-Options DENY always;
+  add_header Referrer-Policy strict-origin-when-cross-origin always;
+
+  location /api/ {
+    proxy_pass http://django_backend;
+    include /etc/nginx/templates/proxy_params.inc;
+  }
+
+  location = / {
+    rewrite ^ /admin break;
+    proxy_pass http://next_frontend;
+    include /etc/nginx/templates/proxy_params.inc;
+  }
+
+  location / {
+    proxy_pass http://next_frontend;
+    include /etc/nginx/templates/proxy_params.inc;
+  }
+}

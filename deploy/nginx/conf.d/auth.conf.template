@@ -1,0 +1,43 @@
+# auth.bdren.ai -> ZITADEL API + Login v2 (variables substituted at start: ZITADEL_DOMAIN)
+upstream zitadel_api   { server zitadel-api:8080;   keepalive 16; }
+upstream zitadel_login { server zitadel-login:3000; keepalive 16; }
+
+server {
+  listen 80;
+  server_name ${ZITADEL_DOMAIN};
+
+  add_header X-Content-Type-Options nosniff always;
+  add_header Referrer-Policy strict-origin-when-cross-origin always;
+
+  # Root -> hosted login app
+  location = / {
+    proxy_pass http://zitadel_login/ui/v2/login/;
+    include /etc/nginx/templates/proxy_params.inc;
+  }
+
+  # Login v2 UI
+  location /ui/v2/login {
+    limit_req zone=auth burst=40 nodelay;
+    proxy_pass http://zitadel_login;
+    include /etc/nginx/templates/proxy_params.inc;
+  }
+
+  # /api alias -> strip prefix
+  location /api/ {
+    proxy_pass http://zitadel_api/;
+    include /etc/nginx/templates/proxy_params.inc;
+  }
+
+  # Everything else (console, oidc, saml, management APIs) -> ZITADEL (h1 / gRPC)
+  location / {
+    if ($is_grpc) { rewrite ^ /__grpc last; }
+    proxy_pass http://zitadel_api;
+    include /etc/nginx/templates/proxy_params.inc;
+  }
+  location /__grpc {
+    internal;
+    grpc_pass grpc://zitadel_api;
+    grpc_set_header Host $http_host;
+    grpc_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+  }
+}

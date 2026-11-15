@@ -1,0 +1,7 @@
+# DEV ONLY (auto-loaded by `docker compose up`; NOT loaded when using -f docker-compose.yml -f docker-compose.prod.yml).
+# Publishes DB/Redis on loopback so the host-run Django dev server can reach them.
+services:
+  postgres:
+    ports: ["127.0.0.1:5433:5432"]
+  redis:
+    ports: ["127.0.0.1:6380:6379"]
