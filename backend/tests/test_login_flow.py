@@ -109,3 +109,15 @@ def test_session_cookie_flags(idp, settings):
 ])
 def test_safe_next(idp, val, expected):
     assert safe_next(val) == expected
+
+
+def test_login_hint_forwarded_to_idp(idp):
+    r = Client().get("/api/v1/auth/login/", {"next": "/", "login_hint": " alice@du.ac.bd "})
+    q = parse_qs(urlparse(r["Location"]).query)
+    assert q["login_hint"] == ["alice@du.ac.bd"]
+
+
+@pytest.mark.parametrize("val", ["", "two words", "x" * 255, "bad\nline"])
+def test_bad_login_hint_dropped(idp, val):
+    r = Client().get("/api/v1/auth/login/", {"next": "/", "login_hint": val})
+    assert "login_hint" not in parse_qs(urlparse(r["Location"]).query)

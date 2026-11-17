@@ -1,7 +1,11 @@
 import React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { LandingPortal } from "@/components/LandingPortal";
+import { loginUrl } from "@/content/site";
+import { Header } from "@/components/site/Header";
+import { SignIn } from "@/components/site/SignIn";
+import { Pricing } from "@/components/pricing/Pricing";
+import { Checkout } from "@/components/pricing/Checkout";
 import { AdminDashboard, AdminSummaryData } from "@/components/AdminDashboard";
 import { CatalogProduct } from "@/lib/api";
 
@@ -47,23 +51,9 @@ const SAMPLE_PRODUCTS: CatalogProduct[] = [
   },
 ];
 
-describe("BDREN Public Landing Portal & Subscription Checkout", () => {
-  beforeEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it("renders public product catalog and pricing for unauthenticated visitors", async () => {
-    vi.spyOn(global, "fetch").mockRejectedValue(new Error("Unauthorized"));
-    render(<LandingPortal initialProducts={SAMPLE_PRODUCTS} />);
-    expect(screen.getByText(/Mindspear Starter/i)).toBeInTheDocument();
-    expect(screen.getByText(/Mindspear Professional/i)).toBeInTheDocument();
-    expect(screen.getByText(/BDT 1500.00/i)).toBeInTheDocument();
-    expect(screen.getAllByText(/Sign in to Subscribe/i).length).toBeGreaterThan(0);
-  });
-
-  it("displays authenticated user, account context switcher, and validates paid package checkout", async () => {
-    vi.spyOn(global, "fetch").mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input);
+function mockSignedInApi() {
+  vi.spyOn(global, "fetch").mockImplementation(async (input: RequestInfo | URL) => {
+    const url = String(input);
       if (url.includes("/api/v1/auth/me/")) {
         return new Response(
           JSON.stringify({
@@ -98,18 +88,72 @@ describe("BDREN Public Landing Portal & Subscription Checkout", () => {
         );
       }
       return new Response(JSON.stringify({ status: "pending_payment_verification", reference: "INV-100" }), { status: 202 });
-    });
+  });
+}
 
-    render(<LandingPortal initialProducts={SAMPLE_PRODUCTS} />);
+describe("BdREN AI website", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("shows sign-in to visitors and the account switcher to signed-in users", async () => {
+    vi.spyOn(global, "fetch").mockRejectedValue(new Error("Unauthorized"));
+    const { unmount } = render(<Header />);
+    expect(screen.getByText("Sign in with BdREN")).toHaveAttribute("href", "/sign-in");
+    unmount();
+
+    mockSignedInApi();
+    render(<Header />);
     await waitFor(() => expect(screen.getByTestId("authenticated-user")).toHaveTextContent("alice@du.ac.bd"));
-    expect(screen.getByLabelText("Account Context Switcher")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByLabelText("Account Context Switcher")).toHaveDisplayValue("Personal account"));
+    expect(screen.getByRole("option", { name: "Dhaka University (admin)" })).toBeInTheDocument();
+  });
 
-    // Open paid package checkout modal and submit without payment reference -> validation error
-    fireEvent.click(screen.getByText("Select Mindspear Professional"));
+  it("leads with the Suite and switches to single-product packages", () => {
+    render(<Pricing />);
+    expect(screen.getByRole("button", { name: /BdREN AI Suite/ })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("heading", { level: 3, name: "Suite Pro" })).toBeInTheDocument();
+    expect(screen.getByRole("list", { name: "Included in the Suite" })).toHaveTextContent("QuiGen");
+
+    fireEvent.click(screen.getByRole("button", { name: /A single product/ }));
+    fireEvent.click(screen.getByRole("button", { name: "AI Mail Wizard" }));
+    expect(screen.getByText("Get Mail Wizard")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Compare AI Mail Wizard plans" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 3, name: "Suite Pro" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "See the BdREN AI Suite" }));
+    expect(screen.getByRole("heading", { level: 3, name: "Suite Pro" })).toBeInTheDocument();
+  });
+
+  it("lists live catalog packages and asks visitors to sign in to subscribe", () => {
+    vi.spyOn(global, "fetch").mockRejectedValue(new Error("Unauthorized"));
+    render(<Checkout initialProducts={SAMPLE_PRODUCTS} />);
+    expect(screen.getByText("Mindspear Professional")).toBeInTheDocument();
+    expect(screen.getByText(/BDT 1500.00/)).toBeInTheDocument();
+    expect(screen.getAllByText("Sign in to Subscribe")[0]).toHaveAttribute(
+      "href",
+      "/sign-in?next=%2Fpricing%23subscribe"
+    );
+  });
+
+  it("validates the payment reference for paid packages", async () => {
+    mockSignedInApi();
+    render(<Checkout initialProducts={SAMPLE_PRODUCTS} />);
+    fireEvent.click(await screen.findByText("Select Mindspear Professional"));
     fireEvent.click(screen.getByText("Confirm Subscription"));
     await waitFor(() =>
       expect(screen.getByRole("alert")).toHaveTextContent("Payment reference is required for paid packages.")
     );
+  });
+
+  it("passes the typed email to the IdP as a login hint", () => {
+    expect(loginUrl("/pricing", " alice@du.ac.bd ")).toBe(
+      "/api/v1/auth/login/?next=%2Fpricing&login_hint=alice%40du.ac.bd"
+    );
+    expect(loginUrl()).toBe("/api/v1/auth/login/?next=%2F");
+    render(<SignIn />);
+    expect(screen.getByLabelText("Email or username")).toHaveAttribute("autocomplete", "username");
+    expect(screen.getByText("Sign in with a passkey")).toHaveAttribute("href", "/api/v1/auth/login/?next=%2F");
   });
 });
 

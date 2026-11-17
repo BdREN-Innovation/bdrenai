@@ -33,6 +33,14 @@ def safe_next(value):
     return value if origin in settings.OIDC["ALLOWED_REDIRECT_ORIGINS"] else "/"
 
 
+def safe_login_hint(value):
+    """A username or email typed on the website; anything odd is dropped rather than sent to the IdP."""
+    hint = (value or "").strip()
+    if not hint or len(hint) > 254 or not hint.isprintable() or any(c.isspace() for c in hint):
+        return None
+    return hint
+
+
 class _Public(APIView):
     authentication_classes = []
     permission_classes = [AllowAny]
@@ -47,6 +55,10 @@ class LoginView(_Public):
         if org_id and org_id.isdigit():
             # Optional ZITADEL organization scope for institutional login routing
             extra["scope"] = f"{settings.OIDC['SCOPES']} urn:zitadel:iam:org:id:{org_id}"
+        hint = safe_login_hint(request.GET.get("login_hint"))
+        if hint:
+            # Lets ZITADEL skip its username step (and route university domains to their IdP)
+            extra["login_hint"] = hint
         try:
             url, blob = oidc.start_authorization(extra=extra or None)
         except oidc.OIDCError:
