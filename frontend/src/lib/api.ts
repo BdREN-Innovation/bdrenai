@@ -74,3 +74,19 @@ export async function apiFetch<T = any>(path: string, options: RequestInit = {})
   }
   return res.json();
 }
+
+/**
+ * Full sign-out: ends the BDREN (Django) session, then sends the browser to ZITADEL's
+ * end-session endpoint so the central SSO session ends too. ZITADEL redirects back to
+ * /api/v1/auth/logged-out/, which returns the user to the landing page.
+ */
+export async function logout(): Promise<void> {
+  let redirect: string | null = null;
+  try {
+    const res = await apiFetch<{ redirect: string | null }>("/api/v1/auth/logout/", { method: "POST" });
+    redirect = res.redirect;
+  } catch {
+    // Session already gone or CSRF cookie missing: fall through to the landing page.
+  }
+  window.location.href = redirect || "/";
+}

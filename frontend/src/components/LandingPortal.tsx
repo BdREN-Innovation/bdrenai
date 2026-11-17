@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useState } from "react";
-import { AccountContextItem, CatalogPackage, CatalogProduct, UserProfile, apiFetch } from "@/lib/api";
+import { AccountContextItem, CatalogPackage, CatalogProduct, UserProfile, apiFetch, logout } from "@/lib/api";
 
 export function LandingPortal({ initialProducts }: { initialProducts?: CatalogProduct[] }) {
   const [products, setProducts] = useState<CatalogProduct[]>(initialProducts || []);
@@ -111,6 +111,13 @@ export function LandingPortal({ initialProducts }: { initialProducts?: CatalogPr
                     </option>
                   ))}
                 </select>
+                <button
+                  type="button"
+                  onClick={() => logout()}
+                  className="whitespace-nowrap rounded-lg border border-slate-700 px-3 py-1 text-xs text-slate-300 hover:border-rose-400 hover:text-rose-300"
+                >
+                  Sign out
+                </button>
               </div>
             ) : (
               <a

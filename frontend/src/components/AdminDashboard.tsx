@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useState } from "react";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, logout } from "@/lib/api";
 
 export interface AdminSummaryData {
   roles: string[];
@@ -159,6 +159,13 @@ export function AdminDashboard({ initialSummary }: { initialSummary?: AdminSumma
         >
           Sign In with ZITADEL SSO
         </a>
+        <button
+          type="button"
+          onClick={() => logout()}
+          className="mt-6 ml-3 inline-block rounded-lg border border-slate-700 px-5 py-2.5 font-semibold text-slate-300 hover:border-rose-400 hover:text-rose-300"
+        >
+          Sign out / switch account
+        </button>
       </div>
     );
   }
@@ -176,9 +183,18 @@ export function AdminDashboard({ initialSummary }: { initialSummary?: AdminSumma
             Active RBAC Roles: {summary.roles.join(", ")}
           </p>
         </div>
-        <a href="/" className="text-sm text-slate-300 hover:text-white">
-          &larr; Public Portal
-        </a>
+        <div className="flex items-center gap-4">
+          <a href="/" className="text-sm text-slate-300 hover:text-white">
+            &larr; Public Portal
+          </a>
+          <button
+            type="button"
+            onClick={() => logout()}
+            className="whitespace-nowrap rounded-lg border border-slate-700 px-3 py-1 text-sm text-slate-300 hover:border-rose-400 hover:text-rose-300"
+          >
+            Sign out
+          </button>
+        </div>
       </header>
 
       <div className="mx-auto max-w-7xl px-6 py-6">

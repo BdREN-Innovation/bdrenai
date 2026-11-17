@@ -148,8 +148,10 @@ class LogoutView(APIView):
 
 
 class LoggedOutView(_Public):
+    """Landing target of ZITADEL's post-logout redirect: send the browser back to the portal."""
+
     def get(self, request):
-        return JsonResponse({"status": "logged_out"})
+        return HttpResponseRedirect("/")
 
 
 class MeView(APIView):
