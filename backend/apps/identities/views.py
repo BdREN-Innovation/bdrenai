@@ -5,14 +5,16 @@ from urllib.parse import urlparse
 
 from django.conf import settings
 from django.contrib.auth import login, logout
-from django.http import HttpResponseRedirect, JsonResponse
+from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import ensure_csrf_cookie
 from rest_framework.permissions import AllowAny
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
 from apps.accounts.services import resolve_authorized_account
 
-from . import oidc, signup, zitadel
+from . import oidc, profile, signup, zitadel
 from .models import ExternalIdentity, User
 from .services import AccountLinkingError, UserNotAllowed, link_external_identity, provision_user
 
@@ -168,6 +170,7 @@ class LoggedOutView(_Public):
         return HttpResponseRedirect("/")
 
 
+@method_decorator(ensure_csrf_cookie, name="dispatch")
 class MeView(APIView):
     def get(self, request):
         u = request.user
@@ -266,3 +269,48 @@ class RegisterResendView(_Public):
             log.warning("resend failed: %s", e)
             return JsonResponse({"error": "resend_failed"}, status=502)
         return JsonResponse({"status": "sent"})
+
+
+@method_decorator(ensure_csrf_cookie, name="dispatch")
+class ProfileView(APIView):
+    def get(self, request):
+        return JsonResponse(profile.serialize(request.user))
+
+    def patch(self, request):
+        if not zitadel.enabled():
+            return JsonResponse({"error": "profile_editing_unavailable"}, status=503)
+        try:
+            user = profile.update(request.user, request.data)
+        except profile.ProfileInvalid as e:
+            return JsonResponse({"error": "invalid", "fields": e.fields}, status=400)
+        except zitadel.ZitadelError as e:
+            log.warning("profile update failed: %s", e)
+            return JsonResponse({"error": "update_failed"}, status=502)
+        return JsonResponse(profile.serialize(user))
+
+
+class AvatarView(APIView):
+    def get(self, request):
+        u = request.user
+        if not u.avatar:
+            return JsonResponse({"error": "no_avatar"}, status=404)
+        resp = HttpResponse(bytes(u.avatar), content_type=u.avatar_type)
+        resp["Cache-Control"] = "private, max-age=86400"
+        resp["Content-Disposition"] = "inline"
+        return resp
+
+    def post(self, request):
+        try:
+            user = profile.set_avatar(request.user, request.FILES.get("avatar"))
+        except profile.ProfileInvalid as e:
+            return JsonResponse({"error": "invalid", "fields": e.fields}, status=400)
+        return JsonResponse({"avatar_url": profile.avatar_url(user)})
+
+    def delete(self, request):
+        profile.remove_avatar(request.user)
+        return JsonResponse({"avatar_url": None})
+
+
+class BillingView(APIView):
+    def get(self, request):
+        return JsonResponse(profile.billing(request.user))

@@ -5,6 +5,7 @@ import { loginUrl } from "@/content/site";
 import { Header } from "@/components/site/Header";
 import { SignIn } from "@/components/site/SignIn";
 import { Register } from "@/components/site/Register";
+import { Profile } from "@/components/site/Profile";
 import { Pricing } from "@/components/pricing/Pricing";
 import { Checkout } from "@/components/pricing/Checkout";
 import { AdminDashboard, AdminSummaryData } from "@/components/AdminDashboard";
@@ -52,9 +53,33 @@ const SAMPLE_PRODUCTS: CatalogProduct[] = [
   },
 ];
 
-function mockSignedInApi() {
-  vi.spyOn(global, "fetch").mockImplementation(async (input: RequestInfo | URL) => {
+const PROFILE = {
+  id: "u-1",
+  first_name: "Alice",
+  last_name: "Rahman",
+  name: "Alice Rahman",
+  email: "alice@du.ac.bd",
+  email_verified: true,
+  avatar_url: null,
+  member_since: "2026-11-01",
+  memberships: [{ organization: "Dhaka University", role: "member", status: "pending" }],
+  is_admin: false,
+  can_edit_name: true,
+};
+
+function mockSignedInApi(extra: (url: string, init?: RequestInit) => Response | undefined = () => undefined) {
+  const calls: { url: string; method: string; body?: BodyInit | null }[] = [];
+  vi.spyOn(global, "fetch").mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
+    calls.push({ url, method: init?.method || "GET", body: init?.body });
+    const custom = extra(url, init);
+    if (custom) return custom;
+      if (url.endsWith("/api/v1/auth/profile/billing/")) {
+        return new Response(JSON.stringify({ subscriptions: [], payments: [] }), { status: 200 });
+      }
+      if (url.endsWith("/api/v1/auth/profile/")) {
+        return new Response(JSON.stringify(PROFILE), { status: 200 });
+      }
       if (url.includes("/api/v1/auth/me/")) {
         return new Response(
           JSON.stringify({
@@ -90,6 +115,7 @@ function mockSignedInApi() {
       }
       return new Response(JSON.stringify({ status: "pending_payment_verification", reference: "INV-100" }), { status: 202 });
   });
+  return calls;
 }
 
 describe("BdREN AI website", () => {
@@ -97,7 +123,7 @@ describe("BdREN AI website", () => {
     vi.restoreAllMocks();
   });
 
-  it("shows sign-in to visitors and the account switcher to signed-in users", async () => {
+  it("shows sign-in to visitors and a two-item profile menu to signed-in users", async () => {
     vi.spyOn(global, "fetch").mockRejectedValue(new Error("Unauthorized"));
     const { unmount } = render(<Header />);
     expect(screen.getByText("Sign in with BdREN")).toHaveAttribute("href", "/sign-in");
@@ -105,9 +131,17 @@ describe("BdREN AI website", () => {
 
     mockSignedInApi();
     render(<Header />);
-    await waitFor(() => expect(screen.getByTestId("authenticated-user")).toHaveTextContent("alice@du.ac.bd"));
-    await waitFor(() => expect(screen.getByLabelText("Account Context Switcher")).toHaveDisplayValue("Personal account"));
-    expect(screen.getByRole("option", { name: "Dhaka University (admin)" })).toBeInTheDocument();
+    const toggle = await screen.findByRole("button", { name: "Profile menu for Alice Rahman" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+
+    fireEvent.click(toggle);
+    const items = screen.getAllByRole("menuitem");
+    expect(items.map((i) => i.textContent?.trim())).toEqual(["My profile", "Log out"]);
+    expect(items[0]).toHaveAttribute("href", "/profile");
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
 
   it("leads with the Suite and switches to single-product packages", () => {
@@ -328,5 +362,84 @@ describe("BDREN Admin Dashboard RBAC, Product & Package Versioning", () => {
       expect(screen.getByRole("status")).toHaveTextContent("Published v3 (policy=immediate, migrated=4, scheduled=0).")
     );
     expect(fetchMock).toHaveBeenCalled();
+  });
+});
+
+describe("My profile", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("shows details, keeps the email read-only and saves a new name", async () => {
+    const calls = mockSignedInApi((url, init) =>
+      url.endsWith("/api/v1/auth/profile/") && init?.method === "PATCH"
+        ? new Response(JSON.stringify({ ...PROFILE, first_name: "Alia", name: "Alia Rahman" }), { status: 200 })
+        : undefined
+    );
+    render(<Profile />);
+    expect(await screen.findByRole("heading", { name: "Alice Rahman" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Email")).toHaveAttribute("readonly");
+    expect(screen.getByText(/Your email can't be changed/)).toBeInTheDocument();
+    expect(screen.getByText("Waiting for approval")).toBeInTheDocument();
+
+    const save = screen.getByRole("button", { name: "Save changes" });
+    expect(save).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("First name"), { target: { value: "Alia" } });
+    fireEvent.click(save);
+    expect(await screen.findByText("Your details are saved.")).toBeInTheDocument();
+    const sent = calls.find((c) => c.method === "PATCH");
+    expect(JSON.parse(String(sent?.body))).toEqual({ first_name: "Alia", last_name: "Rahman" });
+    expect(screen.getByRole("heading", { name: "Alia Rahman" })).toBeInTheDocument();
+  });
+
+  it("uploads a photo and rejects unsupported files before sending", async () => {
+    const calls = mockSignedInApi((url, init) =>
+      url.endsWith("/profile/avatar/") && init?.method === "POST"
+        ? new Response(JSON.stringify({ avatar_url: "/api/v1/auth/profile/avatar/?v=1" }), { status: 200 })
+        : undefined
+    );
+    render(<Profile />);
+    const input = await screen.findByLabelText("Upload a profile photo");
+
+    fireEvent.change(input, { target: { files: [new File(["<svg/>"], "x.svg", { type: "image/svg+xml" })] } });
+    expect(await screen.findByText("Use a PNG, JPEG or WebP image.")).toBeInTheDocument();
+    expect(calls.some((c) => c.url.endsWith("/avatar/"))).toBe(false);
+
+    fireEvent.change(input, { target: { files: [new File(["png"], "me.png", { type: "image/png" })] } });
+    expect(await screen.findByRole("button", { name: "Remove" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Change photo" })).toBeInTheDocument();
+    expect(calls.find((c) => c.url.endsWith("/avatar/"))?.body).toBeInstanceOf(FormData);
+  });
+
+  it("lists plans and payments in billing, with an empty state", async () => {
+    mockSignedInApi((url) =>
+      url.endsWith("/profile/billing/")
+        ? new Response(
+            JSON.stringify({
+              subscriptions: [
+                {
+                  id: "s1", account: "Personal", product: "Synapse", package: "Pro", version: 2, status: "active",
+                  billing_interval: "monthly", price: "1500.00", currency: "BDT", starts_at: "2026-11-01", expires_at: "2026-12-01",
+                },
+              ],
+              payments: [],
+            }),
+            { status: 200 }
+          )
+        : undefined
+    );
+    render(<Profile />);
+    expect(await screen.findByText("Synapse · Pro")).toBeInTheDocument();
+    expect(screen.getByText("BDT 1,500.00")).toBeInTheDocument();
+    expect(screen.getByText("No payments yet.")).toBeInTheDocument();
+  });
+
+  it("asks signed-out visitors to sign in", async () => {
+    vi.spyOn(global, "fetch").mockRejectedValue(new Error("Unauthorized"));
+    render(<Profile />);
+    expect(await screen.findByRole("link", { name: "Sign in" })).toHaveAttribute(
+      "href",
+      "/api/v1/auth/login/?next=%2Fprofile"
+    );
   });
 });

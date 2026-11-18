@@ -26,6 +26,12 @@ class User(AbstractBaseUser):
     email = models.EmailField(blank=True)  # informational, NOT unique, NOT an identifier
     email_verified = models.BooleanField(default=False)
     name = models.CharField(max_length=255, blank=True)
+    given_name = models.CharField(max_length=100, blank=True)
+    family_name = models.CharField(max_length=100, blank=True)
+    # Profile photo kept in the database: small (<= 2 MB), validated by file signature, served only to its owner.
+    avatar = models.BinaryField(null=True, blank=True, editable=False)
+    avatar_type = models.CharField(max_length=32, blank=True)
+    avatar_updated_at = models.DateTimeField(null=True, blank=True)
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.ACTIVE)
     created_at = models.DateTimeField(auto_now_add=True)
     last_login_sync_at = models.DateTimeField(null=True, blank=True)

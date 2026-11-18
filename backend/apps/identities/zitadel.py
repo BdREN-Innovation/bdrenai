@@ -53,6 +53,12 @@ def create_human_user(*, first_name, last_name, email, password):
     return _call("POST", "/v2/users/human", body)["userId"]
 
 
+def update_profile(user_id, *, first_name, last_name):
+    _call("PUT", f"/v2/users/human/{user_id}", {
+        "profile": {"givenName": first_name, "familyName": last_name, "displayName": f"{first_name} {last_name}"},
+    })
+
+
 def verify_email(user_id, code):
     _call("POST", f"/v2/users/{user_id}/email/verify", {"verificationCode": code})
 

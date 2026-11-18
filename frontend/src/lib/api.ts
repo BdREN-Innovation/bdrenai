@@ -81,14 +81,24 @@ export interface FormResult<T> {
   data: T & { error?: string; fields?: Record<string, string> };
 }
 
-/** POSTs JSON and returns the body whatever the status, so forms can show per-field errors. */
-export async function postForm<T = object>(path: string, body: object): Promise<FormResult<T>> {
+/**
+ * Sends JSON (or a FormData upload) and returns the body whatever the status, so forms can show
+ * per-field errors.
+ */
+export async function postForm<T = object>(
+  path: string,
+  body: object | FormData,
+  method: "POST" | "PATCH" | "DELETE" = "POST"
+): Promise<FormResult<T>> {
+  const isUpload = body instanceof FormData;
+  const headers: Record<string, string> = { "X-CSRFToken": getCsrfToken() };
+  if (!isUpload) headers["Content-Type"] = "application/json";
   try {
     const res = await fetch(path, {
-      method: "POST",
+      method,
       credentials: "include",
-      headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrfToken() },
-      body: JSON.stringify(body),
+      headers,
+      body: isUpload ? body : JSON.stringify(body),
     });
     const data = await res.json().catch(() => ({ error: `HTTP_${res.status}` }));
     return { ok: res.ok, status: res.status, data };
@@ -100,6 +110,54 @@ export async function postForm<T = object>(path: string, body: object): Promise<
 export interface Institution {
   id: string;
   name: string;
+}
+
+export interface MyProfile {
+  id: string;
+  first_name: string;
+  last_name: string;
+  name: string;
+  email: string;
+  email_verified: boolean;
+  avatar_url: string | null;
+  member_since: string;
+  memberships: { organization: string; role: string; status: string }[];
+  is_admin: boolean;
+  can_edit_name: boolean;
+}
+
+export interface BillingSummary {
+  subscriptions: {
+    id: string;
+    account: string;
+    product: string;
+    package: string;
+    version: number;
+    status: string;
+    billing_interval: string;
+    price: string;
+    currency: string;
+    starts_at: string;
+    expires_at: string | null;
+  }[];
+  payments: {
+    id: string;
+    account: string;
+    amount: string;
+    currency: string;
+    reference: string;
+    status: string;
+    created_at: string;
+  }[];
+}
+
+export const PROFILE_PATH = "/api/v1/auth/profile/";
+
+/** Fired when the signed-in user's profile changes, so the header updates without a reload. */
+export const PROFILE_EVENT = "bdren:profile";
+
+export function announceProfile(user: MyProfile): void {
+  window.dispatchEvent(new CustomEvent<MyProfile>(PROFILE_EVENT, { detail: user }));
 }
 
 /**

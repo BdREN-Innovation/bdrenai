@@ -73,6 +73,9 @@ def provision_user(claims):
         ),
         "last_login_sync_at": timezone.now(),
     }
+    for key in ("given_name", "family_name"):
+        if claims.get(key):
+            profile[key] = claims[key]
     with transaction.atomic():
         # 1. Check if this (issuer, subject) is already linked as a verified ExternalIdentity
         ext = (
