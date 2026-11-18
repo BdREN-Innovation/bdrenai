@@ -2,7 +2,6 @@ import { PRODUCTS } from "@/content/products";
 
 const COMPANY_LINKS = [
   { href: "/about", label: "About" },
-  { href: "/about#team", label: "Team" },
   { href: "/about#contact", label: "Contact" },
   { href: "/pricing", label: "Pricing" },
 ];

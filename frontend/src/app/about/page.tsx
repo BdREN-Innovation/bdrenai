@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-import { CONTACT, TEAM_SIZE } from "@/content/site";
+import { CONTACT } from "@/content/site";
 import { Shell } from "@/components/site/Shell";
 import { ContactForm } from "@/components/site/ContactForm";
 
 export const metadata: Metadata = {
-  title: "About, team and contact",
-  description: "BdREN AI is built by the Bangladesh Research and Education Network. Meet the team or get in touch.",
+  title: "About and contact",
+  description: "BdREN AI is built by the Bangladesh Research and Education Network. Get in touch.",
 };
 
 const VALUES = [
@@ -19,8 +19,6 @@ const VALUES = [
     body: "Plans for students, staff and whole institutions, with clear limits and usage reports.",
   },
 ];
-
-const TEAM = Array.from({ length: TEAM_SIZE }, (_, i) => ({ id: i, name: "[Name]", role: "[Role]" }));
 
 const DETAILS = [
   { label: "Email", value: CONTACT.email, href: `mailto:${CONTACT.email}` },
@@ -70,31 +68,7 @@ export default function AboutPage() {
         </div>
       </section>
 
-      <section id="team" aria-labelledby="tm-title" className="scroll-mt-6 border-y border-line bg-white px-6 py-24">
-        <div className="mx-auto max-w-site">
-          <h2 id="tm-title" className="h-section">
-            Our team
-          </h2>
-          <p className="mt-3 text-lg text-muted">The people who build and run BdREN AI.</p>
-          <ul className="mt-11 grid grid-cols-2 gap-x-5 gap-y-7 md:grid-cols-3 lg:grid-cols-4">
-            {TEAM.map((m) => (
-              <li key={m.id}>
-                <div
-                  role="img"
-                  aria-label="Photo to come"
-                  className="flex aspect-[4/5] items-center justify-center rounded-2xl border border-dashed border-field bg-ground text-sm text-muted"
-                >
-                  Photo
-                </div>
-                <p className="mt-3.5 text-lg font-semibold">{m.name}</p>
-                <p className="mt-1 text-[15px] text-muted">{m.role}</p>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </section>
-
-      <section id="contact" aria-labelledby="ct-title" className="scroll-mt-6 px-6 py-24">
+      <section id="contact" aria-labelledby="ct-title" className="scroll-mt-6 border-t border-line px-6 py-24">
         <div className="mx-auto flex max-w-site flex-wrap gap-12">
           <div className="min-w-0 flex-[1_1_360px]">
             <h2 id="ct-title" className="h-section">
