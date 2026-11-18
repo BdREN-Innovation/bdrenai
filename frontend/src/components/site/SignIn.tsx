@@ -61,7 +61,7 @@ export function SignIn({ next = "/" }: { next?: string }) {
       </a>
       <p className="mt-8 text-[15px] text-muted">
         New to BdREN AI?{" "}
-        <a href={loginUrl(next)} className="font-semibold text-brand-text hover:text-brand-strong">
+        <a href="/register" className="font-semibold text-brand-text hover:text-brand-strong">
           Create an account
         </a>
       </p>

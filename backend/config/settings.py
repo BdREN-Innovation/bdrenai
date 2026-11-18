@@ -121,6 +121,11 @@ OIDC = {
     "ALLOWED_REDIRECT_ORIGINS": env_list("OIDC_ALLOWED_REDIRECT_ORIGINS", "http://localhost:8000"),
 }
 
+# --- Website sign-up (creates users in ZITADEL) ---
+# PAT of a ZITADEL machine user with ORG_USER_MANAGER (scripts/bootstrap_zitadel.py creates it).
+# Empty = sign-up endpoints answer 503 and the website falls back to ZITADEL's own registration.
+ZITADEL_SERVICE_TOKEN = env("ZITADEL_SERVICE_TOKEN", "")
+
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": ["rest_framework.authentication.SessionAuthentication"],
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],

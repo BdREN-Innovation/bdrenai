@@ -28,6 +28,34 @@ def call(issuer, pat, method, path, body=None, host=None):
         raise SystemExit(f"{method} {path} -> {e.code}: {err_text[:400]}")
 
 
+SIGNUP_USER = "bdren-signup"
+
+
+def ensure_signup_service_user(c, secrets):
+    """Machine user the website backend uses to create accounts (ORG_USER_MANAGER only).
+    Its PAT goes to the secrets file as ZITADEL_SERVICE_TOKEN; it is never printed."""
+    found = c("POST", "/management/v1/users/_search", {
+        "queries": [{"userNameQuery": {"userName": SIGNUP_USER, "method": "TEXT_QUERY_METHOD_EQUALS"}}],
+    }).get("result", [])
+    uid = found[0]["id"] if found else c("POST", "/management/v1/users/machine", {
+        "userName": SIGNUP_USER,
+        "name": "BdREN website sign-up",
+        "description": "Creates accounts from the website sign-up form",
+        "accessTokenType": "ACCESS_TOKEN_TYPE_BEARER",
+    })["userId"]
+    try:
+        c("POST", "/management/v1/orgs/me/members", {"userId": uid, "roles": ["ORG_USER_MANAGER"]})
+    except SystemExit as e:
+        if "409" not in str(e) and "AlreadyExists" not in str(e):
+            raise
+    if secrets.get(SIGNUP_USER, {}).get("token"):
+        print(f"service user {SIGNUP_USER}: exists, token kept")
+        return
+    token = c("POST", f"/management/v1/users/{uid}/pats", {"expirationDate": "2099-01-01T00:00:00Z"})["token"]
+    secrets[SIGNUP_USER] = {"user_id": uid, "token": token}
+    print(f"service user {SIGNUP_USER}: token written to secrets (set it as ZITADEL_SERVICE_TOKEN)")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--issuer", required=True)
@@ -86,6 +114,7 @@ def main():
             cid = r["clientId"]
             secrets[app["name"]] = {"client_id": cid, "client_secret": r.get("clientSecret")}
             print(f"client {app['name']}: created, client_id={cid}")
+    ensure_signup_service_user(c, secrets)
     fd = os.open(a.secrets_out, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(fd, "w") as f:
         json.dump(secrets, f, indent=2)

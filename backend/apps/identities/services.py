@@ -35,6 +35,11 @@ def _sync_institutional_organization(user, claims):
 
     membership = Membership.objects.select_for_update().filter(user=user, organization=org).first()
     if membership is not None:
+        if membership.status == Membership.Status.PENDING:
+            # Signing in through the institution's own login proves membership: approve the sign-up request.
+            membership.status = Membership.Status.ACTIVE
+            membership.save(update_fields=["status"])
+            return org
         if membership.status != Membership.Status.ACTIVE:
             raise UserNotAllowed("Institutional membership is disabled or deprovisioned")
         return org

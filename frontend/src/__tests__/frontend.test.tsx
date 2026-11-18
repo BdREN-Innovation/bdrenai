@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { loginUrl } from "@/content/site";
 import { Header } from "@/components/site/Header";
 import { SignIn } from "@/components/site/SignIn";
+import { Register } from "@/components/site/Register";
 import { Pricing } from "@/components/pricing/Pricing";
 import { Checkout } from "@/components/pricing/Checkout";
 import { AdminDashboard, AdminSummaryData } from "@/components/AdminDashboard";
@@ -154,6 +155,104 @@ describe("BdREN AI website", () => {
     render(<SignIn />);
     expect(screen.getByLabelText("Email or username")).toHaveAttribute("autocomplete", "username");
     expect(screen.getByText("Sign in with a passkey")).toHaveAttribute("href", "/api/v1/auth/login/?next=%2F");
+    expect(screen.getByText("Create an account")).toHaveAttribute("href", "/register");
+  });
+});
+
+describe("Create account", () => {
+  const ORG_ID = "6f1c2a9e-0000-4000-8000-000000000001";
+
+  function mockSignupApi(register: () => Response) {
+    const calls: { url: string; body?: unknown }[] = [];
+    vi.spyOn(global, "fetch").mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      calls.push({ url, body: init?.body ? JSON.parse(String(init.body)) : undefined });
+      if (url.endsWith("/api/v1/auth/institutions/")) {
+        return new Response(
+          JSON.stringify({ institutions: [{ id: ORG_ID, name: "University of Dhaka" }], signup_enabled: true }),
+          { status: 200 }
+        );
+      }
+      if (url.endsWith("/api/v1/auth/register/")) return register();
+      if (url.endsWith("/api/v1/auth/register/verify/")) {
+        return new Response(JSON.stringify({ status: "verified", email: "rahim@du.ac.bd" }), { status: 200 });
+      }
+      return new Response("{}", { status: 404 });
+    });
+    return calls;
+  }
+
+  async function fillForm() {
+    await screen.findByRole("option", { name: "University of Dhaka" });
+    fireEvent.change(screen.getByLabelText("First name"), { target: { value: "Rahim" } });
+    fireEvent.change(screen.getByLabelText("Last name"), { target: { value: "Uddin" } });
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "rahim@du.ac.bd" } });
+    fireEvent.change(screen.getByLabelText("Institution"), { target: { value: ORG_ID } });
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "Str0ng!pass" } });
+  }
+
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("keeps Create account off until the form is valid, then signs up and confirms the email", async () => {
+    const calls = mockSignupApi(
+      () => new Response(JSON.stringify({ status: "verification_sent", email: "rahim@du.ac.bd" }), { status: 201 })
+    );
+    render(<Register />);
+    await fillForm();
+    const create = screen.getByRole("button", { name: "Create account" });
+    expect(create).toBeDisabled();
+    expect(screen.getByRole("list", { name: "Password rules" })).not.toHaveTextContent("(not yet)");
+
+    fireEvent.change(screen.getByLabelText("Confirm password"), { target: { value: "Str0ng!pas" } });
+    expect(screen.getByText("The passwords don't match.")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Confirm password"), { target: { value: "Str0ng!pass" } });
+    fireEvent.click(screen.getByRole("checkbox"));
+    expect(create).toBeEnabled();
+
+    fireEvent.click(create);
+    await screen.findByRole("heading", { name: "Check your email" });
+    expect(calls.find((c) => c.url.endsWith("/register/"))?.body).toMatchObject({
+      first_name: "Rahim",
+      email: "rahim@du.ac.bd",
+      institution: ORG_ID,
+      confirm_password: "Str0ng!pass",
+      accepted_terms: true,
+    });
+
+    fireEvent.change(screen.getByLabelText("Code"), { target: { value: "123456" } });
+    fireEvent.click(screen.getByRole("button", { name: "Confirm email" }));
+    await screen.findByRole("heading", { name: "Welcome, Rahim" });
+    expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute(
+      "href",
+      "/api/v1/auth/login/?next=%2F&login_hint=rahim%40du.ac.bd"
+    );
+  });
+
+  it("shows the server's message on the email field when the address is taken", async () => {
+    mockSignupApi(
+      () =>
+        new Response(
+          JSON.stringify({ error: "email_taken", fields: { email: "An account with this email already exists." } }),
+          { status: 409 }
+        )
+    );
+    render(<Register />);
+    await fillForm();
+    fireEvent.change(screen.getByLabelText("Confirm password"), { target: { value: "Str0ng!pass" } });
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(screen.getByRole("button", { name: "Create account" }));
+    expect(await screen.findByText("An account with this email already exists.")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Create your account" })).toBeInTheDocument();
+  });
+
+  it("falls back to ZITADEL's own sign-up when website sign-up is off", async () => {
+    vi.spyOn(global, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ institutions: [], signup_enabled: false }), { status: 200 })
+    );
+    render(<Register />);
+    expect(await screen.findByText("Continue to BdREN sign-in")).toHaveAttribute("href", "/api/v1/auth/login/?next=%2F");
   });
 });
 

@@ -56,6 +56,7 @@ services:
       OIDC_REDIRECT_URI: ${OIDC_REDIRECT_URI:-http://bdren.localhost:8080/api/v1/auth/callback/}
       OIDC_POST_LOGOUT_REDIRECT_URI: ${OIDC_POST_LOGOUT_REDIRECT_URI:-http://bdren.localhost:8080/api/v1/auth/logged-out/}
       OIDC_ALLOWED_REDIRECT_ORIGINS: ${OIDC_ALLOWED_REDIRECT_ORIGINS:-http://bdren.localhost:8080,http://admin.bdren.localhost:8080}
+      ZITADEL_SERVICE_TOKEN: ${ZITADEL_SERVICE_TOKEN:-}
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/api/v1/health/"]
       interval: 10s

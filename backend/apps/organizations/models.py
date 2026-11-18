@@ -34,6 +34,7 @@ class Membership(models.Model):
 
     class Status(models.TextChoices):
         ACTIVE = "active"
+        PENDING = "pending"  # asked to join at sign-up; grants nothing until an admin approves
         SUSPENDED = "suspended"
         DEPROVISIONED = "deprovisioned"
 

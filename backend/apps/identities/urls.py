@@ -10,4 +10,8 @@ urlpatterns = [
     path("logout/", views.LogoutView.as_view()),
     path("logged-out/", views.LoggedOutView.as_view()),
     path("me/", views.MeView.as_view()),
+    path("institutions/", views.InstitutionsView.as_view()),
+    path("register/", views.RegisterView.as_view()),
+    path("register/verify/", views.RegisterVerifyView.as_view()),
+    path("register/resend/", views.RegisterResendView.as_view()),
 ]

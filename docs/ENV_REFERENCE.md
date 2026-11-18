@@ -18,3 +18,4 @@
 | `DJANGO_SECRET_KEY` | Django cryptographic signing key | `openssl rand -hex 32` |
 | `DJANGO_DEBUG` | Must be `false` in production | `false` |
 | `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET` | Provisioned by `scripts/bootstrap_zitadel.py` | From `.zitadel-secrets.json` |
+| `ZITADEL_SERVICE_TOKEN` | PAT of the `bdren-signup` machine user (ORG_USER_MANAGER); enables website sign-up. Empty = sign-up returns 503 | From `.zitadel-secrets.json` (`bdren-signup.token`) |

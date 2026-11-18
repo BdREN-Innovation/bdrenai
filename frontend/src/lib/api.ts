@@ -75,6 +75,33 @@ export async function apiFetch<T = any>(path: string, options: RequestInit = {})
   return res.json();
 }
 
+export interface FormResult<T> {
+  ok: boolean;
+  status: number;
+  data: T & { error?: string; fields?: Record<string, string> };
+}
+
+/** POSTs JSON and returns the body whatever the status, so forms can show per-field errors. */
+export async function postForm<T = object>(path: string, body: object): Promise<FormResult<T>> {
+  try {
+    const res = await fetch(path, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrfToken() },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({ error: `HTTP_${res.status}` }));
+    return { ok: res.ok, status: res.status, data };
+  } catch {
+    return { ok: false, status: 0, data: { error: "network" } as FormResult<T>["data"] };
+  }
+}
+
+export interface Institution {
+  id: string;
+  name: string;
+}
+
 /**
  * Full sign-out: ends the BDREN (Django) session, then sends the browser to ZITADEL's
  * end-session endpoint so the central SSO session ends too. ZITADEL redirects back to

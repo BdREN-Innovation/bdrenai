@@ -12,14 +12,16 @@ from rest_framework.views import APIView
 
 from apps.accounts.services import resolve_authorized_account
 
-from . import oidc
-from .models import ExternalIdentity
+from . import oidc, signup, zitadel
+from .models import ExternalIdentity, User
 from .services import AccountLinkingError, UserNotAllowed, link_external_identity, provision_user
 
 log = logging.getLogger(__name__)
 SESSION_KEY = "oidc_flow"
 SESSION_LINK_KEY = "oidc_link_flow"
+SESSION_SIGNUP_KEY = "signup_flow"
 FLOW_TTL = 600
+SIGNUP_TTL = 3600
 
 
 def safe_next(value):
@@ -191,3 +193,76 @@ class MeView(APIView):
                 for e in u.external_identities.all()
             ],
         })
+
+
+class InstitutionsView(_Public):
+    """Institutions a new member can ask to join (active organizations)."""
+
+    def get(self, request):
+        items = [{"id": str(o["id"]), "name": o["name"]} for o in signup.active_institutions()]
+        return JsonResponse({"institutions": items, "signup_enabled": zitadel.enabled()})
+
+
+class RegisterView(_Public):
+    def post(self, request):
+        if not zitadel.enabled():
+            return JsonResponse({"error": "signup_unavailable"}, status=503)
+        try:
+            user, zid = signup.register(request.data, ip_address=request.META.get("REMOTE_ADDR"))
+        except signup.SignupInvalid as e:
+            return JsonResponse({"error": "invalid", "fields": e.fields}, status=400)
+        except zitadel.ZitadelError as e:
+            log.warning("sign-up failed: %s", e)
+            if e.code == "email_taken":
+                return JsonResponse(
+                    {"error": "email_taken", "fields": {"email": "An account with this email already exists."}},
+                    status=409,
+                )
+            if e.code == "weak_password":
+                return JsonResponse(
+                    {"error": "invalid", "fields": {"password": "This password is not allowed. Choose another."}},
+                    status=400,
+                )
+            return JsonResponse({"error": "signup_failed"}, status=502)
+        request.session[SESSION_SIGNUP_KEY] = {"zid": zid, "user": str(user.id), "email": user.email, "ts": int(time.time())}
+        return JsonResponse({"status": "verification_sent", "email": user.email}, status=201)
+
+
+def _signup_flow(request):
+    flow = request.session.get(SESSION_SIGNUP_KEY)
+    if not flow or time.time() - flow["ts"] > SIGNUP_TTL:
+        return None
+    return flow
+
+
+class RegisterVerifyView(_Public):
+    def post(self, request):
+        flow = _signup_flow(request)
+        if flow is None:
+            return JsonResponse({"error": "no_signup"}, status=400)
+        code = request.data.get("code")
+        if not signup.valid_code(code):
+            return JsonResponse({"error": "invalid", "fields": {"code": "Enter the code from the email."}}, status=400)
+        try:
+            zitadel.verify_email(flow["zid"], code.strip())
+        except zitadel.ZitadelError as e:
+            log.warning("email verification failed: %s", e)
+            if e.code in ("invalid_code", "idp_error"):
+                return JsonResponse({"error": "invalid", "fields": {"code": "That code is wrong or has expired."}}, status=400)
+            return JsonResponse({"error": "verify_failed"}, status=502)
+        User.objects.filter(id=flow["user"]).update(email_verified=True)
+        request.session.pop(SESSION_SIGNUP_KEY, None)
+        return JsonResponse({"status": "verified", "email": flow["email"]})
+
+
+class RegisterResendView(_Public):
+    def post(self, request):
+        flow = _signup_flow(request)
+        if flow is None:
+            return JsonResponse({"error": "no_signup"}, status=400)
+        try:
+            zitadel.resend_email_code(flow["zid"])
+        except zitadel.ZitadelError as e:
+            log.warning("resend failed: %s", e)
+            return JsonResponse({"error": "resend_failed"}, status=502)
+        return JsonResponse({"status": "sent"})
