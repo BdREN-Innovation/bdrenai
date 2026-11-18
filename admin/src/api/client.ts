@@ -1,4 +1,4 @@
-import type { ApiErrorBody } from './types';
+import type { ApiErrorBody, DomainConflict } from './types';
 
 export const API_ROOT = '/api/v1';
 export const SUPERADMIN_ROOT = `${API_ROOT}/superadmin`;
@@ -136,7 +136,20 @@ const ERROR_TEXT: Record<string, string> = {
   feature_not_in_package: 'A limit uses a feature of an app that is not in this package.',
   use_new_version: 'Price, apps and limits change only through a new version.',
   no_changes: 'Nothing changed, so there is no new version to publish.',
+  member_of_other_institution:
+    'This person already belongs to another institution. A person can belong to one institution only; remove them from the other institution first.',
+  domain_taken: 'A sign-in domain can belong to one institution only, and another institution already lists this one.',
+  not_coverable: 'Only an active member who is not on the package yet can be added to it.',
+  personal_plan_consent_required: 'This person has a personal plan. Send them an invitation so they can agree to switch.',
+  not_covered: 'This member is not on the institution package.',
+  personal_plan_member: 'This member pays for a personal plan, so the institution cannot change their membership.',
+  renewal_stopped: 'This subscription is set not to renew, so it cannot be renewed.',
 };
+
+function domainTakenMessage(conflicts: DomainConflict[]): string {
+  const taken = conflicts.map(({ domain, institution }) => `${domain} already belongs to ${institution.name}`).join('; ');
+  return `${taken}. A sign-in domain can belong to one institution only.`;
+}
 
 export function errorMessage(error: unknown): string {
   if (error instanceof ApiError) {
@@ -146,6 +159,7 @@ export function errorMessage(error: unknown): string {
         ? `Seat cap reached: ${used} of ${cap} seats are in use. Raise the cap or free seats first.`
         : 'Seat cap reached. Raise the cap or free seats first.';
     }
+    if (error.code === 'domain_taken' && error.body.conflicts?.length) return domainTakenMessage(error.body.conflicts);
     return ERROR_TEXT[error.code] ?? error.message;
   }
   if (error instanceof Error) return error.message;

@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { Ban, CircleCheck, RotateCcw, Shield, ShieldOff, UserMinus } from 'lucide-react';
-import type { InstitutionDetail, Member, MembershipStatus, Role } from '@/api/types';
-import type { MembershipAction } from '@/features/members/actions';
+import type { InstitutionDetail, Member, MemberLabel, MembershipStatus, Role } from '@/api/types';
+import type { ActionTarget, MembershipAction } from '@/features/members/actions';
 import type { MenuAction } from '@/components/ui';
-import { ErrorState, Menu, Pagination, SearchInput, Select, StatusChip, Table, TableMessage, Td, Th } from '@/components/ui';
+import { CoverageChip, ErrorState, Menu, Pagination, SearchInput, Select, StatusChip, Table, TableMessage, Td, Th } from '@/components/ui';
 import { MembershipActionDialog } from '@/features/members/actions';
-import { ROLES, ROLE_LABEL } from '@/lib/labels';
+import { MEMBER_LABELS, ROLES, ROLE_LABEL } from '@/lib/labels';
 import { useMembers } from '@/api/queries';
 import { formatDate } from '@/lib/format';
 
@@ -19,33 +19,41 @@ const STATUS_FILTERS: { value: '' | MembershipStatus; label: string }[] = [
   { value: 'deprovisioned', label: 'Removed' },
 ];
 
-function memberActions(member: Member, act: (action: MembershipAction) => void): MenuAction[] {
-  const base = { membershipId: member.membership_id, name: member.user.name || member.user.email };
+/** Only covered members can be made admin or suspended (the server refuses it for anyone else). */
+function activeActions(member: Member, base: ActionTarget, act: (action: MembershipAction) => void): MenuAction[] {
+  const covered = member.coverage === 'institution';
   const isAdmin = member.role === 'admin' || member.role === 'owner';
+  const role: MenuAction | null = isAdmin
+    ? { label: 'Make member', icon: ShieldOff, onSelect: () => act({ kind: 'role', role: 'member', ...base }) }
+    : covered
+      ? { label: 'Make admin', icon: Shield, onSelect: () => act({ kind: 'role', role: 'admin', ...base }) }
+      : null;
+  const suspend: MenuAction | null = covered ? { label: 'Suspend', icon: Ban, danger: true, onSelect: () => act({ kind: 'suspend', ...base }) } : null;
+  return [role, suspend].filter((action): action is MenuAction => action !== null);
+}
+
+function memberActions(member: Member, institution: string, act: (action: MembershipAction) => void): MenuAction[] {
+  const base = { membershipId: member.membership_id, name: member.user.name || member.user.email, institution };
   const byStatus: Record<MembershipStatus, MenuAction[]> = {
     pending: [{ label: 'Approve request', icon: CircleCheck, onSelect: () => act({ kind: 'approve', ...base }) }],
-    active: [
-      isAdmin
-        ? { label: 'Make member', icon: ShieldOff, onSelect: () => act({ kind: 'role', role: 'member', ...base }) }
-        : { label: 'Make admin', icon: Shield, onSelect: () => act({ kind: 'role', role: 'admin', ...base }) },
-      { label: 'Suspend', icon: Ban, danger: true, onSelect: () => act({ kind: 'suspend', ...base }) },
-    ],
+    active: activeActions(member, base, act),
     suspended: [{ label: 'Reactivate', icon: RotateCcw, onSelect: () => act({ kind: 'activate', ...base }) }],
     deprovisioned: [],
   };
   const actions = byStatus[member.status];
   return member.status === 'deprovisioned'
     ? actions
-    : [...actions, { label: 'Remove from institution', icon: UserMinus, danger: true, onSelect: () => act({ kind: 'remove', ...base }) }];
+    : [...actions, { label: 'Take out of institution', icon: UserMinus, danger: true, onSelect: () => act({ kind: 'remove', ...base }) }];
 }
 
 export function Members({ institution }: { institution: InstitutionDetail }) {
   const [q, setQ] = useState('');
   const [status, setStatus] = useState<'' | MembershipStatus>('');
   const [role, setRole] = useState<'' | Role>('');
+  const [label, setLabel] = useState<'' | MemberLabel>('');
   const [page, setPage] = useState(1);
   const [action, setAction] = useState<MembershipAction | null>(null);
-  const list = useMembers(institution.slug, { q, status: status || undefined, role: role || undefined, page, page_size: PAGE_SIZE });
+  const list = useMembers(institution.slug, { q, status: status || undefined, role: role || undefined, label: label || undefined, page, page_size: PAGE_SIZE });
   const results = list.data?.results ?? [];
 
   return (
@@ -67,6 +75,14 @@ export function Members({ institution }: { institution: InstitutionDetail }) {
             </option>
           ))}
         </Select>
+        <Select aria-label="Coverage" inline value={label} onChange={(event) => { setLabel(event.target.value as '' | MemberLabel); setPage(1); }}>
+          <option value="">All coverage</option>
+          {MEMBER_LABELS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </Select>
       </div>
       {list.isError ? <ErrorState error={list.error} onRetry={() => void list.refetch()} /> : null}
       <div>
@@ -76,6 +92,7 @@ export function Members({ institution }: { institution: InstitutionDetail }) {
               <Th>Member</Th>
               <Th>Role</Th>
               <Th>Status</Th>
+              <Th>Coverage</Th>
               <Th>Account</Th>
               <Th>Joined</Th>
               <Th className="w-12">
@@ -85,10 +102,10 @@ export function Members({ institution }: { institution: InstitutionDetail }) {
           </thead>
           <tbody>
             {results.length === 0 ? (
-              <TableMessage colSpan={6}>{list.isPending ? 'Loading…' : 'No members match these filters.'}</TableMessage>
+              <TableMessage colSpan={7}>{list.isPending ? 'Loading…' : 'No members match these filters.'}</TableMessage>
             ) : (
               results.map((member) => {
-                const actions = memberActions(member, setAction);
+                const actions = memberActions(member, institution.name, setAction);
                 return (
                   <tr key={member.membership_id}>
                     <Td>
@@ -101,6 +118,7 @@ export function Members({ institution }: { institution: InstitutionDetail }) {
                     <Td>
                       <StatusChip status={member.status} />
                     </Td>
+                    <Td>{member.label ? <CoverageChip label={member.label} /> : <span className="text-ink-muted">—</span>}</Td>
                     <Td>{member.user.status === 'active' ? <span className="text-ink-muted">Active</span> : <StatusChip status={member.user.status} />}</Td>
                     <Td className="tabular whitespace-nowrap">{formatDate(member.joined_at)}</Td>
                     <Td className="text-right">

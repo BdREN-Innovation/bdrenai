@@ -8,7 +8,7 @@ from apps.identities.models import User
 from apps.invitations import services as invitations
 from apps.invitations.errors import ContractErrors, ServiceError, invalid
 from apps.invitations.models import Invitation
-from apps.invitations.shapes import paginated, serialize_invitation, serialize_member
+from apps.invitations.shapes import paginated, serialize_invitation
 from apps.invitations.throttles import SendsInvitations
 from apps.organizations import directory
 from apps.organizations.models import Membership, Organization
@@ -61,8 +61,11 @@ def _plain_institution(slug):
 
 
 def _invited_body(invited, org):
+    """`outcome` `covered`: the person was an affiliated free-tier member and is now on the package (no invitation)."""
     body = {
-        "invitation": serialize_invitation(invited.invitation),
+        "outcome": invited.outcome,
+        "invitation": serialize_invitation(invited.invitation) if invited.invitation else None,
+        "member": invitations.member_shape(invited.membership) if invited.membership else None,
         "institution": shapes.institution_detail(services.load_institution(org.slug)) if org else None,
         "email_sent": invited.email_sent,
     }
@@ -113,7 +116,7 @@ class InstitutionsView(SendsInvitations, SuperadminView):
         invited = created.invited
         body = {
             "institution": shapes.institution_detail(services.load_institution(created.organization.slug)),
-            "invitation": serialize_invitation(invited.invitation) if invited else None,
+            "invitation": serialize_invitation(invited.invitation) if invited and invited.invitation else None,
             "email_sent": invited.email_sent if invited else False,
         }
         return JsonResponse(body, status=201)
@@ -165,8 +168,10 @@ class InstitutionMembersView(SuperadminView):
             q=lists.text(request),
             status=lists.choice(request, "status", Membership.Status.values),
             role=lists.choice(request, "role", MEMBERSHIP_ROLES),
+            coverage=lists.choice(request, "coverage", Membership.Coverage.values),
+            label=lists.choice(request, "label", invitations.Label.values),
         )
-        return JsonResponse(paginated(qs, request.GET, serialize_member))
+        return JsonResponse(paginated(qs, request.GET, invitations.member_shape))
 
 
 class InstitutionHistoryView(SuperadminView):
@@ -194,7 +199,7 @@ class MembershipView(SuperadminView):
             _membership(pk), source=SOURCE, actor=request.user, role=data.get("role"), status=data.get("status"),
             reason=services.clean_reason(data.get("reason")), force=flag(data, "force"), ip_address=client_ip(request),
         )
-        return JsonResponse(serialize_member(membership))
+        return JsonResponse(invitations.member_shape(membership))
 
 
 class MembershipRemoveView(SuperadminView):
@@ -205,7 +210,7 @@ class MembershipRemoveView(SuperadminView):
             reason=services.clean_reason(data.get("reason"), required=True), force=flag(data, "force"),
             ip_address=client_ip(request),
         )
-        return JsonResponse(serialize_member(membership))
+        return JsonResponse(invitations.member_shape(membership))
 
 
 # ---------------------------------------------------------------- users

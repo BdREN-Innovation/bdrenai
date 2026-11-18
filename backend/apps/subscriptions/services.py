@@ -11,6 +11,11 @@ from apps.packages.models import Package, PackageVersion
 from .models import Subscription, SubscriptionHistory
 
 
+class RenewalStopped(ValueError):
+    """The subscription was set not to renew (`auto_renew = False`); it runs to its expiry unless `resume_renewal`
+    (or a verified payment for it) sets it to renew again."""
+
+
 def _default_expiry(starts_at, interval: str, trial_days: int = 0):
     if trial_days > 0:
         return starts_at + timedelta(days=trial_days)
@@ -127,6 +132,8 @@ def change_subscription_package(
 def renew_subscription(*, subscription: Subscription, actor=None, notes: str = ""):
     """Renews a subscription and applies `pending_package_version` if an ON_RENEWAL package migration was queued."""
     sub = Subscription.objects.select_for_update().get(id=subscription.id)
+    if not sub.auto_renew:
+        raise RenewalStopped("This subscription is set not to renew.")
     old_ver = sub.package_version
     if sub.pending_package_version_id:
         sub.package_version = sub.pending_package_version
@@ -165,3 +172,57 @@ def cancel_subscription(*, subscription: Subscription, actor=None, notes: str = 
     sync_subscription_entitlements(sub)
     record_audit(actor=actor, action="subscription.cancelled", target_type="Subscription", target_id=str(sub.id))
     return sub
+
+
+@transaction.atomic
+def stop_renewal(*, subscription: Subscription, actor=None, notes: str = "", metadata=None, ip_address=None):
+    """Sets `auto_renew = False`: the subscription keeps its limits until `expires_at`, then is not renewed. No refund.
+    Returns False when it was already set not to renew."""
+    sub = Subscription.objects.select_for_update().get(id=subscription.id)
+    if not sub.auto_renew:
+        return False
+    sub.auto_renew = False
+    sub.save(update_fields=["auto_renew"])
+    SubscriptionHistory.objects.create(
+        subscription=sub,
+        old_package_version=sub.package_version,
+        new_package_version=sub.package_version,
+        change_type=SubscriptionHistory.ChangeType.MANUAL_ADJUSTMENT,
+        changed_by=actor,
+        notes=notes or "Set not to renew",
+    )
+    record_audit(
+        actor=actor, action="subscription.renewal_stopped", target_type="Subscription", target_id=str(sub.id),
+        metadata={
+            "account_id": str(sub.account_id),
+            "expires_at": sub.expires_at.isoformat() if sub.expires_at else None,
+            **(metadata or {}),
+        },
+        ip_address=ip_address,
+    )
+    return True
+
+
+@transaction.atomic
+def resume_renewal(*, subscription: Subscription, actor=None, notes: str = "", metadata=None, ip_address=None):
+    """Undoes `stop_renewal`: sets `auto_renew = True` again, with a history row and a `subscription.renewal_resumed`
+    audit entry. Returns False when it already renews."""
+    sub = Subscription.objects.select_for_update().get(id=subscription.id)
+    if sub.auto_renew:
+        return False
+    sub.auto_renew = True
+    sub.save(update_fields=["auto_renew"])
+    SubscriptionHistory.objects.create(
+        subscription=sub,
+        old_package_version=sub.package_version,
+        new_package_version=sub.package_version,
+        change_type=SubscriptionHistory.ChangeType.MANUAL_ADJUSTMENT,
+        changed_by=actor,
+        notes=notes or "Set to renew again",
+    )
+    record_audit(
+        actor=actor, action="subscription.renewal_resumed", target_type="Subscription", target_id=str(sub.id),
+        metadata={"account_id": str(sub.account_id), **(metadata or {})},
+        ip_address=ip_address,
+    )
+    return True

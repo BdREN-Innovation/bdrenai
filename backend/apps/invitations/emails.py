@@ -13,7 +13,7 @@ from django.utils import timezone
 
 from apps.organizations.models import DEFAULT_TIMEZONE, Membership
 
-from .models import Invitation, new_token
+from .models import Invitation, Notice, new_token
 
 log = logging.getLogger(__name__)
 
@@ -99,8 +99,56 @@ def _send(connection, invitation, token):
     return True
 
 
+def covered_notice(organization, user):
+    """Unsaved `Notice` telling `user` that `organization` added them to its package."""
+    context = {"institution": organization.name, "url": f"{settings.PLATFORM_PUBLIC_URL}/profile"}
+    return Notice(
+        kind=Notice.Kind.COVERED,
+        email=user.email,
+        organization=organization,
+        subject=f"{organization.name} added you to its BDREN AI package",
+        body_text=render_to_string("invitations/covered.txt", context),
+        body_html=render_to_string("invitations/covered.html", context),
+    )
+
+
+def send_notices(notices):
+    """Sends each saved `Notice` over one connection and records `email_status`. Returns (sent, failed) counts."""
+    sent, failed = [], []
+    connection = get_connection()
+    try:
+        connection.open()
+    except Exception as exc:  # mail server unreachable: the worker retries nothing, the notice is informational
+        log.warning("notice email connection failed count=%s error=%s", len(notices), type(exc).__name__)
+        failed = [notice.pk for notice in notices]
+    else:
+        for notice in notices:
+            (sent if _send_notice(connection, notice) else failed).append(notice.pk)
+        connection.close()
+    now = timezone.now()
+    Notice.objects.filter(pk__in=sent, email_status=Invitation.EmailStatus.SENDING).update(
+        email_status=Invitation.EmailStatus.SENT, sent_at=now
+    )
+    Notice.objects.filter(pk__in=failed, email_status=Invitation.EmailStatus.SENDING).update(
+        email_status=Invitation.EmailStatus.FAILED
+    )
+    return len(sent), len(failed)
+
+
+def _send_notice(connection, notice):
+    try:
+        send_mail(
+            notice.subject, notice.body_text, settings.DEFAULT_FROM_EMAIL, [notice.email],
+            html_message=notice.body_html, connection=connection,
+        )
+    except Exception as exc:  # any transport failure is logged and recorded as `failed`
+        log.warning("notice email failed notice=%s error=%s", notice.id, type(exc).__name__)
+        return False
+    return True
+
+
 class Outbox:
-    """Collects invitation emails during a transaction and sends them once it commits.
+    """Collects invitation and notice emails during a transaction and sends them once it commits.
 
     A request sends at most `INVITATION_INLINE_EMAILS` itself, so bulk actions never hold a web worker on SMTP:
     `reserve()` answers `sending` for those and `queued` for the rest, which the mail worker
@@ -112,6 +160,7 @@ class Outbox:
         self.limit = settings.INVITATION_INLINE_EMAILS if limit is None else limit
         self._reserved = 0
         self._queue = []
+        self._notices = []
         self.sent = 0
         self.failures = 0
         self.queued = 0
@@ -128,9 +177,24 @@ class Outbox:
         if invitation.email_status != Invitation.EmailStatus.SENDING:
             self.queued += 1
             return
-        if not self._queue:
-            transaction.on_commit(self._flush)
+        self._schedule()
         self._queue.append((invitation, token))
+
+    def notify(self, notices):
+        """Saves the unsaved `Notice` rows (one query) and sends those within the inline limit after commit."""
+        for notice in notices:
+            notice.email_status = self.reserve()
+        Notice.objects.bulk_create(notices)
+        for notice in notices:
+            if notice.email_status != Invitation.EmailStatus.SENDING:
+                self.queued += 1
+                continue
+            self._schedule()
+            self._notices.append(notice)
+
+    def _schedule(self):
+        if not self._queue and not self._notices:
+            transaction.on_commit(self._flush)
 
     @property
     def email_sent(self):
@@ -138,18 +202,20 @@ class Outbox:
 
     def _flush(self):
         queue, self._queue = self._queue, []
-        sent, failed = send_all(queue)
-        self.sent += sent
-        self.failures += failed
+        notices, self._notices = self._notices, []
+        for sent, failed in (send_all(queue) if queue else (0, 0), send_notices(notices) if notices else (0, 0)):
+            self.sent += sent
+            self.failures += failed
 
 
 def send_queued(limit=100):
     """One step of the mail worker: claims up to `limit` pending invitations whose email is `queued` (or stuck in
     `sending` after a request died), gives each a fresh token (only its hash is stored, and nobody has received
-    the old one), sends them and records the result. Returns (sent, failed)."""
+    the old one), sends them and records the result; then the same for notices. Returns (sent, failed)."""
     now = timezone.now()
+    stale = now - STALE_SENDING
     waiting = Q(email_status=Invitation.EmailStatus.QUEUED) | Q(
-        email_status=Invitation.EmailStatus.SENDING, last_sent_at__lte=now - STALE_SENDING
+        email_status=Invitation.EmailStatus.SENDING, last_sent_at__lte=stale
     )
     with transaction.atomic():
         rows = list(
@@ -165,4 +231,15 @@ def send_queued(limit=100):
             invitation.last_sent_at = now
             pairs.append((invitation, token))
         Invitation.objects.bulk_update(rows, ["token_hash", "email_status", "last_sent_at"])
-    return send_all(pairs) if pairs else (0, 0)
+        notices = list(
+            Notice.objects.select_for_update(skip_locked=True)
+            .filter(
+                Q(email_status=Invitation.EmailStatus.QUEUED)
+                | Q(email_status=Invitation.EmailStatus.SENDING, created_at__lte=stale)
+            )
+            .order_by("created_at")[:limit]
+        )
+        Notice.objects.filter(pk__in=[n.pk for n in notices]).update(email_status=Invitation.EmailStatus.SENDING)
+    sent, failed = send_all(pairs) if pairs else (0, 0)
+    notice_sent, notice_failed = send_notices(notices) if notices else (0, 0)
+    return sent + notice_sent, failed + notice_failed

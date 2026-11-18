@@ -47,4 +47,20 @@ describe('request', () => {
     expect((error as ApiError).code).toBe('seat_cap_reached');
     expect(errorMessage(error)).toBe('Seat cap reached: 100 of 100 seats are in use. Raise the cap or free seats first.');
   });
+
+  it('names the institution that already holds a sign-in domain', () => {
+    const error = new ApiError(409, {
+      error: 'domain_taken',
+      message: 'A sign-in domain can belong to one institution only.',
+      fields: { sign_in_domains: 'du.ac.bd belongs to Dhaka University.' },
+      conflicts: [{ domain: 'du.ac.bd', institution: { slug: 'dhaka-university', name: 'Dhaka University' } }],
+    });
+    expect(errorMessage(error)).toBe('du.ac.bd already belongs to Dhaka University. A sign-in domain can belong to one institution only.');
+    expect(error.fields.sign_in_domains).toBe('du.ac.bd belongs to Dhaka University.');
+  });
+
+  it('explains that a person can belong to one institution only', () => {
+    const error = new ApiError(409, { error: 'member_of_other_institution', message: 'Member elsewhere' });
+    expect(errorMessage(error)).toMatch(/already belongs to another institution/);
+  });
 });

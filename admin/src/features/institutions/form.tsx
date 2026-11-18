@@ -182,7 +182,7 @@ export function InstitutionForm({ draft, onChange, errors, autoFocusName }: Inst
       <Field
         label="Sign-in domains"
         error={errors.sign_in_domains}
-        hint="Comma-separated, e.g. example.edu. Leave blank to allow any email."
+        hint="Comma-separated, e.g. example.edu. People who sign up with a verified email on one of these join the institution. A domain can belong to one institution only."
       >
         {(props) => (
           <Input {...props} value={draft.domains} spellCheck={false} onChange={(event) => set({ domains: event.target.value })} />

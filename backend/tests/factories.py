@@ -6,10 +6,15 @@ from datetime import timedelta
 from django.core import mail
 from django.utils import timezone
 
+from apps.accounts.models import Account
 from apps.identities.models import User
 from apps.invitations.models import Invitation, new_token
 from apps.organizations.models import Membership
 from apps.organizations.services import create_organization
+from apps.packages.models import Package
+from apps.packages.services import create_package_with_version
+from apps.products.models import Product
+from apps.subscriptions.services import create_subscription
 from tests.conftest import ISSUER
 
 LINK_RE = re.compile(r"/invite/([A-Za-z0-9_-]+)")
@@ -25,9 +30,26 @@ def make_org(slug="du", *, name=None, **details):
     return create_organization(name=name or f"Institution {slug}", slug=slug, **details)
 
 
-def add_member(org, user=None, *, role=Membership.Role.MEMBER, status=Membership.Status.ACTIVE, email=None):
+def add_member(org, user=None, *, role=Membership.Role.MEMBER, status=Membership.Status.ACTIVE, email=None,
+               coverage=Membership.Coverage.INSTITUTION):
     user = user or make_user(email or f"{uuid.uuid4().hex[:8]}@du.ac.bd")
-    return Membership.objects.create(user=user, organization=org, role=role, status=status)
+    return Membership.objects.create(user=user, organization=org, role=role, status=status, coverage=coverage)
+
+
+def affiliate(org, email, **kw):
+    """An active, not covered (free-tier) member of `org`."""
+    return add_member(org, make_user(email), coverage=Membership.Coverage.NONE, **kw)
+
+
+def give_personal_plan(user, *, product=None, interval=Package.BillingInterval.MONTHLY):
+    """A paid personal subscription for `user` (their personal account is created if missing)."""
+    product = product or Product.objects.get_or_create(slug="synapse", defaults={"name": "Synapse"})[0]
+    account, _ = Account.objects.get_or_create(owner_user=user, account_type=Account.Type.PERSONAL)
+    _, version = create_package_with_version(
+        product=product, name="Pro", slug=f"pro-{uuid.uuid4().hex[:8]}", price=500, billing_interval=interval,
+        limits=[],
+    )
+    return create_subscription(account=account, package_version=version)
 
 
 def make_invitation(org, email="invitee@du.ac.bd", *, role=Membership.Role.MEMBER, expired=False,

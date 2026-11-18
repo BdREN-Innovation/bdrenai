@@ -11,7 +11,7 @@ import {
   postForm,
 } from "@/lib/api";
 import { loginUrl } from "@/content/site";
-import { AdminInstitution, fetchAdminInstitutions, membersPagePath } from "@/lib/portal";
+import { AdminInstitution, fetchAdminInstitutions, membersConsoleUrl } from "@/lib/portal";
 import { Avatar } from "./Avatar";
 
 const AVATAR_TYPES = ["image/png", "image/jpeg", "image/webp"];
@@ -237,7 +237,7 @@ function AccessSection({ user }: { user: MyProfile }) {
         <ul aria-label="Institutions you manage" className="mt-5 flex flex-wrap gap-3">
           {administered.map((i) => (
             <li key={i.slug}>
-              <a href={membersPagePath(i.slug)} className="btn-outline">
+              <a href={membersConsoleUrl(i.slug)} className="btn-outline">
                 Manage members of {i.name}
               </a>
             </li>

@@ -20,10 +20,12 @@ from apps.packages.services import (
 from apps.products.models import Feature, Product
 from apps.subscriptions.models import Subscription
 from apps.subscriptions.services import (
+    RenewalStopped,
     cancel_subscription,
     change_subscription_package,
     create_subscription,
     renew_subscription,
+    resume_renewal,
 )
 from apps.usage.models import UsageCounter
 
@@ -259,6 +261,7 @@ class AdminSubscriptionsAndBillingView(APIView):
                     "version": s.package_version.version,
                     "pending_version": s.pending_package_version.version if s.pending_package_version_id else None,
                     "status": s.status,
+                    "auto_renew": s.auto_renew,
                     "expires_at": s.expires_at.strftime("%Y-%m-%dT%H:%M:%SZ") if s.expires_at else None,
                 }
                 for s in subs
@@ -296,8 +299,16 @@ class AdminSubscriptionsAndBillingView(APIView):
             return JsonResponse({"subscription_id": str(sub.id), "version": sub.package_version.version})
         if action == "renew":
             sub = Subscription.objects.get(id=request.data["subscription_id"])
-            sub = renew_subscription(subscription=sub, actor=request.user)
+            try:
+                sub = renew_subscription(subscription=sub, actor=request.user)
+            except RenewalStopped as e:
+                return JsonResponse({"error": "renewal_stopped", "detail": str(e)}, status=409)
             return JsonResponse({"subscription_id": str(sub.id), "version": sub.package_version.version})
+        if action == "resume_renewal":
+            sub = Subscription.objects.get(id=request.data["subscription_id"])
+            resume_renewal(subscription=sub, actor=request.user, notes=request.data.get("notes", ""))
+            sub.refresh_from_db()
+            return JsonResponse({"subscription_id": str(sub.id), "auto_renew": sub.auto_renew})
         if action == "cancel":
             sub = Subscription.objects.get(id=request.data["subscription_id"])
             sub = cancel_subscription(subscription=sub, actor=request.user)

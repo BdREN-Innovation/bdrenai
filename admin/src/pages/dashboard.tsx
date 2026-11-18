@@ -32,7 +32,7 @@ function AttentionRow({ item }: { item: AttentionItem }) {
       <li className={base}>
         <UserPlus aria-hidden="true" size={16} className="shrink-0 text-warning-fg" />
         <span className="flex-1">
-          {link} has <strong className="font-semibold">{formatNumber(item.count)}</strong> sign-up requests waiting for approval
+          {link} has <strong className="font-semibold">{formatNumber(item.count)}</strong> sign-up requests waiting for a verified email
         </span>
       </li>
     );
@@ -70,7 +70,7 @@ export function DashboardPage() {
               value={data.counts.pending_invitations}
               detail={`${formatNumber(data.counts.expired_invitations)} expired`}
             />
-            <KpiTile icon={UserPlus} label="Sign-up requests" value={data.counts.pending_requests} detail="waiting for approval" />
+            <KpiTile icon={UserPlus} label="Sign-up requests" value={data.counts.pending_requests} detail="waiting for a verified email" />
           </div>
           <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
             <Card title="Needs attention" description="Seats near the cap, expired invitations and waiting requests.">

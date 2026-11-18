@@ -55,12 +55,15 @@ def error_of(excinfo):
 
 # ---------------------------------------------------------------- seats
 
-def test_seats_count_active_members_and_live_invitations_only(org):
+def test_seats_count_covered_members_and_live_invitations_only(org):
     add_member(org)
     add_member(org, role=Membership.Role.ADMIN)
     add_member(org, status=Membership.Status.PENDING)
     add_member(org, status=Membership.Status.SUSPENDED)
     add_member(org, status=Membership.Status.DEPROVISIONED)
+    affiliated = add_member(org)
+    affiliated.coverage = Membership.Coverage.NONE
+    affiliated.save()
     make_invitation(org, "live@du.ac.bd")
     make_invitation(org, "old@du.ac.bd", expired=True)
     make_invitation(org, "gone@du.ac.bd", status=Invitation.Status.REVOKED)
@@ -69,14 +72,14 @@ def test_seats_count_active_members_and_live_invitations_only(org):
     other = make_org("other")
     add_member(other)
 
-    assert services.seats_used(org) == 3
-    assert services.seat_summary(org) == {"used": 3, "cap": None}
+    assert services.seats_used(org) == 4
+    assert services.seat_summary(org) == {"used": 4, "cap": None}
     annotated = {o.slug: o for o in services.with_seats(Organization.objects.all())}
-    assert annotated["du"].used_seats == 3
+    assert annotated["du"].used_seats == 4
     assert annotated["other"].used_seats == 1
     org.seat_cap = 10
-    assert services.seat_summary(annotated["du"]) == {"used": 3, "cap": None}
-    assert services.seat_summary(org) == {"used": 3, "cap": 10}
+    assert services.seat_summary(annotated["du"]) == {"used": 4, "cap": None}
+    assert services.seat_summary(org) == {"used": 4, "cap": 10}
 
 
 def test_invite_is_blocked_at_the_seat_cap(org):
@@ -215,9 +218,7 @@ def test_invitation_rules(org):
 
     org.sign_in_domains = ["du.ac.bd"]
     org.save()
-    with pytest.raises(ServiceError) as e:
-        invite(org, "x@gmail.com")
-    assert error_of(e) == ("domain_not_allowed", 400) and "email" in e.value.fields
+    assert invite(org, "x@gmail.com").invitation.email == "x@gmail.com"  # any email domain may be invited
 
     org.status = Organization.Status.SUSPENDED
     org.save()
@@ -259,7 +260,7 @@ def test_resending_an_expired_invitation_takes_a_seat_again(org):
         services.resend_invitation(expired, source=SOURCE)
     assert error_of(e) == ("seat_cap_reached", 409)
 
-    Membership.objects.update(status=Membership.Status.SUSPENDED)
+    Membership.objects.update(coverage=Membership.Coverage.NONE)
     assert services.resend_invitation(expired, source=SOURCE).invitation.effective_status == "pending"
 
 
@@ -337,19 +338,22 @@ def test_import_dry_run_reports_every_reason_without_writing(org):
     before = Invitation.objects.count()
     result = services.import_rows(org, rows, dry_run=True, source="portal", allowed_roles=services.PORTAL_ROLES)
     body = result.body()
-    reasons = [(r["index"], r["status"], r["reason"]) for r in body["rows"]]
+    reasons = [(r["index"], r["status"], r["reason"], r["action"]) for r in body["rows"]]
     assert reasons == [
-        (0, "ok", None),
-        (1, "error", "invalid_email"),
-        (2, "error", "bad_role"),
-        (3, "skip", "duplicate_in_file"),
-        (4, "error", "domain_not_allowed"),
-        (5, "skip", "already_member"),
-        (6, "skip", "already_invited"),
-        (7, "ok", None),
-        (8, "ok", None),
+        (0, "ok", None, "invite"),
+        (1, "error", "invalid_email", None),
+        (2, "error", "bad_role", None),
+        (3, "skip", "duplicate_in_file", None),
+        (4, "ok", None, "invite"),  # any email domain may be invited
+        (5, "skip", "already_member", None),
+        (6, "skip", "already_invited", None),
+        (7, "ok", "over_cap", "invite"),  # the dry run names the rows that will not fit
+        (8, "ok", "over_cap", "invite"),
     ]
-    assert body["summary"] == {"ok": 3, "error": 3, "skip": 3, "fits": 2, "seats": {"used": 2, "cap": 4}}
+    assert body["summary"] == {
+        "ok": 4, "error": 2, "skip": 3, "fits": 2, "seats": {"used": 2, "cap": 4},
+        "actions": {"invite": 4, "cover": 0, "consent_invite": 0},
+    }
     assert body["created"] == 0 and body["email_failures"] == 0
     assert Invitation.objects.count() == before
 
@@ -391,19 +395,18 @@ def test_import_limits(org):
 
 # ---------------------------------------------------------------- review fixes
 
-def test_resend_is_refused_once_the_person_joined_or_the_domain_is_no_longer_allowed(org):
+def test_resend_is_refused_once_the_person_joined_here_or_elsewhere(org):
     joined, _ = make_invitation(org, "joined@du.ac.bd", expired=True)
     add_member(org, make_user("Joined@du.ac.bd"))
     with pytest.raises(ServiceError) as e:
         services.resend_invitation(joined, source=SOURCE)
     assert error_of(e) == ("already_member", 409)
 
-    outsider, _ = make_invitation(org, "x@gmail.com")
-    org.sign_in_domains = ["du.ac.bd"]
-    org.save()
+    moved, _ = make_invitation(org, "x@gmail.com", expired=True)
+    add_member(make_org("other"), make_user("x@gmail.com"))
     with pytest.raises(ServiceError) as e:
-        services.resend_invitation(outsider, source=SOURCE)
-    assert error_of(e) == ("domain_not_allowed", 400)
+        services.resend_invitation(moved, source=SOURCE)
+    assert error_of(e) == ("member_of_other_institution", 409)
     assert mail.outbox == []
 
 
@@ -434,9 +437,8 @@ def test_resend_expired_skips_people_who_are_already_members(org, django_capture
     """Rows written before the retire rule existed (or joined by a path that bypassed it) are still skipped."""
     make_invitation(org, "member@du.ac.bd", expired=True)
     add_member(org, make_user("Member@du.ac.bd"))
-    make_invitation(org, "outsider@gmail.com", expired=True)
-    org.sign_in_domains = ["du.ac.bd"]
-    org.save()
+    make_invitation(org, "elsewhere@gmail.com", expired=True)
+    add_member(make_org("other"), make_user("elsewhere@gmail.com"))
     make_invitation(org, "late@du.ac.bd", expired=True)
     with django_capture_on_commit_callbacks(execute=True):
         result = services.resend_expired(source=SOURCE)

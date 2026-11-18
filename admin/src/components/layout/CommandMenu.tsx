@@ -5,6 +5,7 @@ import { useNavigate } from '@tanstack/react-router';
 import { Building2, Monitor, Moon, Sun } from 'lucide-react';
 import type { ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
+import type { ThemeMode } from '@/lib/theme';
 import { useInstitutionOptions } from '@/api/queries';
 import { CONFIGURATION_PAGES, NAV_ITEMS } from './nav';
 import { useTheme } from '@/lib/theme';
@@ -14,7 +15,7 @@ interface CommandMenuProps {
   onOpenChange: (open: boolean) => void;
 }
 
-function Item({ icon: Icon, value, keywords, onSelect, children }: { icon: LucideIcon; value: string; keywords?: string[]; onSelect: () => void; children: ReactNode }) {
+export function CommandItem({ icon: Icon, value, keywords, onSelect, children }: { icon: LucideIcon; value: string; keywords?: string[]; onSelect: () => void; children: ReactNode }) {
   return (
     <Command.Item
       value={value}
@@ -28,10 +29,15 @@ function Item({ icon: Icon, value, keywords, onSelect, children }: { icon: Lucid
   );
 }
 
+export const COMMAND_OVERLAY = 'fixed inset-0 z-69 bg-scrim';
+export const COMMAND_CONTENT =
+  'fixed top-[15vh] left-1/2 z-70 w-[calc(100vw-32px)] max-w-xl -translate-x-1/2 overflow-hidden rounded-xl border border-stroke bg-surface shadow-modal';
+export const COMMAND_INPUT =
+  'w-full border-b border-stroke bg-transparent px-4 py-3 text-sm text-ink outline-none placeholder:text-ink-muted';
+
 /** ⌘K: jump to a page, an institution (searched on the server), or switch the theme. */
 export function CommandMenu({ open, onOpenChange }: CommandMenuProps) {
   const navigate = useNavigate();
-  const { setMode } = useTheme();
   const [search, setSearch] = useState('');
   const institutions = useInstitutionOptions(search.trim(), open);
 
@@ -45,8 +51,8 @@ export function CommandMenu({ open, onOpenChange }: CommandMenuProps) {
       open={open}
       onOpenChange={(next) => (next ? onOpenChange(true) : close())}
       label="Command menu"
-      overlayClassName="fixed inset-0 z-69 bg-scrim"
-      contentClassName="fixed top-[15vh] left-1/2 z-70 w-[calc(100vw-32px)] max-w-xl -translate-x-1/2 overflow-hidden rounded-xl border border-stroke bg-surface shadow-modal"
+      overlayClassName={COMMAND_OVERLAY}
+      contentClassName={COMMAND_CONTENT}
     >
       <RadixDialog.Title className="sr-only">Command menu</RadixDialog.Title>
       <RadixDialog.Description className="sr-only">Search pages and institutions, or change the theme.</RadixDialog.Description>
@@ -54,13 +60,13 @@ export function CommandMenu({ open, onOpenChange }: CommandMenuProps) {
         value={search}
         onValueChange={setSearch}
         placeholder="Search pages and institutions…"
-        className="w-full border-b border-stroke bg-transparent px-4 py-3 text-sm text-ink outline-none placeholder:text-ink-muted"
+        className={COMMAND_INPUT}
       />
       <Command.List className="max-h-96 overflow-y-auto p-2">
         <Command.Empty className="px-4 py-8 text-center text-sm text-ink-muted">No results</Command.Empty>
         <Command.Group heading="Pages">
           {NAV_ITEMS.map((item) => (
-            <Item
+            <CommandItem
               key={item.path}
               icon={item.icon}
               value={`page ${item.label}`}
@@ -72,10 +78,10 @@ export function CommandMenu({ open, onOpenChange }: CommandMenuProps) {
             >
               <span className="flex-1 truncate">{item.label}</span>
               {item.soon ? <span className="text-xs text-ink-muted">Soon</span> : null}
-            </Item>
+            </CommandItem>
           ))}
           {CONFIGURATION_PAGES.map((item) => (
-            <Item
+            <CommandItem
               key={item.tab}
               icon={item.icon}
               value={`page ${item.label}`}
@@ -87,13 +93,13 @@ export function CommandMenu({ open, onOpenChange }: CommandMenuProps) {
             >
               <span className="flex-1 truncate">{item.label}</span>
               <span className="text-xs text-ink-muted">Configuration</span>
-            </Item>
+            </CommandItem>
           ))}
         </Command.Group>
         {(institutions.data?.results.length ?? 0) > 0 ? (
           <Command.Group heading="Institutions">
             {institutions.data?.results.map((institution) => (
-              <Item
+              <CommandItem
                 key={institution.slug}
                 icon={Building2}
                 value={`institution ${institution.name} ${institution.slug}`}
@@ -105,22 +111,34 @@ export function CommandMenu({ open, onOpenChange }: CommandMenuProps) {
               >
                 <span className="flex-1 truncate">{institution.name}</span>
                 <span className="text-xs text-ink-muted">{institution.slug}</span>
-              </Item>
+              </CommandItem>
             ))}
           </Command.Group>
         ) : null}
-        <Command.Group heading="Theme">
-          <Item icon={Sun} value="theme light" keywords={['appearance', 'mode']} onSelect={() => { setMode('light'); close(); }}>
-            Use light theme
-          </Item>
-          <Item icon={Moon} value="theme dark" keywords={['appearance', 'mode']} onSelect={() => { setMode('dark'); close(); }}>
-            Use dark theme
-          </Item>
-          <Item icon={Monitor} value="theme system" keywords={['appearance', 'mode', 'auto']} onSelect={() => { setMode('system'); close(); }}>
-            Match system theme
-          </Item>
-        </Command.Group>
+        <ThemeCommands onDone={close} />
       </Command.List>
     </Command.Dialog>
+  );
+}
+
+/** The Theme group of a command menu; `onDone` closes the menu. */
+export function ThemeCommands({ onDone }: { onDone: () => void }) {
+  const { setMode } = useTheme();
+  const choose = (mode: ThemeMode) => {
+    setMode(mode);
+    onDone();
+  };
+  return (
+    <Command.Group heading="Theme">
+      <CommandItem icon={Sun} value="theme light" keywords={['appearance', 'mode']} onSelect={() => choose('light')}>
+        Use light theme
+      </CommandItem>
+      <CommandItem icon={Moon} value="theme dark" keywords={['appearance', 'mode']} onSelect={() => choose('dark')}>
+        Use dark theme
+      </CommandItem>
+      <CommandItem icon={Monitor} value="theme system" keywords={['appearance', 'mode', 'auto']} onSelect={() => choose('system')}>
+        Match system theme
+      </CommandItem>
+    </Command.Group>
   );
 }

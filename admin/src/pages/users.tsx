@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { Ban, RotateCcw, ShieldCheck } from 'lucide-react';
-import type { Role, UserListItem, UserStatus } from '@/api/types';
+import type { Role, UserListItem, UserMembership, UserStatus } from '@/api/types';
 import type { PickedInstitution } from '@/features/invitations/picker';
 import {
   Button,
   Chip,
   ConfirmDialog,
+  CoverageChip,
   Drawer,
   ErrorState,
   LoadingState,
@@ -38,6 +39,29 @@ const STATUS_TABS: { value: '' | UserStatus; label: string }[] = [
   { value: 'deactivated', label: 'Deactivated' },
 ];
 
+function currentMembership(user: UserListItem): UserMembership | undefined {
+  return user.memberships.find((membership) => membership.status !== 'deprovisioned');
+}
+
+function MembershipRow({ membership }: { membership: UserMembership }) {
+  const { label } = membership;
+  return (
+    <li className="flex flex-wrap items-center gap-2 border-t border-stroke-muted px-3 py-2 first:border-t-0">
+      <Link
+        to="/institutions/$slug"
+        params={{ slug: membership.institution.slug }}
+        search={{ tab: 'members' }}
+        className="min-w-0 flex-1 truncate text-[13px] font-semibold text-brand hover:underline"
+      >
+        {membership.institution.name}
+      </Link>
+      <span className="text-xs text-ink-muted">{ROLE_LABEL[membership.role]}</span>
+      {membership.status === 'active' ? null : <StatusChip status={membership.status} />}
+      {label ? <CoverageChip label={label} /> : null}
+    </li>
+  );
+}
+
 function UserDrawer({ userId, onClose }: { userId: string | null; onClose: () => void }) {
   const notify = useToast();
   const user = useUser(userId);
@@ -45,6 +69,8 @@ function UserDrawer({ userId, onClose }: { userId: string | null; onClose: () =>
   const [confirming, setConfirming] = useState(false);
   const data = user.data;
   const suspending = data?.status === 'active';
+  const current = data ? currentMembership(data) : undefined;
+  const past = data?.memberships.filter((membership) => membership.status === 'deprovisioned') ?? [];
 
   return (
     <Drawer
@@ -81,31 +107,33 @@ function UserDrawer({ userId, onClose }: { userId: string | null; onClose: () =>
             <dt className="text-ink-muted">User ID</dt>
             <dd className="font-mono text-xs break-all">{data.id}</dd>
           </dl>
-          <section aria-labelledby="user-memberships" className="flex flex-col gap-2">
-            <h3 id="user-memberships" className="text-[13px] font-semibold text-ink">
-              Memberships
+          <section aria-labelledby="user-institution" className="flex flex-col gap-2">
+            <h3 id="user-institution" className="text-[13px] font-semibold text-ink">
+              Institution
             </h3>
-            {data.memberships.length === 0 ? (
-              <p className="text-[13px] text-ink-muted">Personal account, no institution.</p>
-            ) : (
+            {current ? (
               <ul className="flex flex-col rounded-lg border border-stroke">
-                {data.memberships.map((membership) => (
-                  <li key={membership.membership_id} className="flex items-center gap-2 border-t border-stroke-muted px-3 py-2 first:border-t-0">
-                    <Link
-                      to="/institutions/$slug"
-                      params={{ slug: membership.institution.slug }}
-                      search={{ tab: 'members' }}
-                      className="flex-1 truncate text-[13px] font-semibold text-brand hover:underline"
-                    >
-                      {membership.institution.name}
-                    </Link>
-                    <span className="text-xs text-ink-muted">{ROLE_LABEL[membership.role]}</span>
-                    <StatusChip status={membership.status} />
-                  </li>
+                <MembershipRow membership={current} />
+              </ul>
+            ) : (
+              <p className="text-[13px] text-ink-muted">No institution. Personal account.</p>
+            )}
+            <p className="text-xs text-ink-muted">
+              A person belongs to one institution at most. To move them, take them out of the current one from its Members tab first.
+            </p>
+          </section>
+          {past.length > 0 ? (
+            <section aria-labelledby="user-past-institutions" className="flex flex-col gap-2">
+              <h3 id="user-past-institutions" className="text-[13px] font-semibold text-ink">
+                Earlier institutions
+              </h3>
+              <ul className="flex flex-col rounded-lg border border-stroke">
+                {past.map((membership) => (
+                  <MembershipRow key={membership.membership_id} membership={membership} />
                 ))}
               </ul>
-            )}
-          </section>
+            </section>
+          ) : null}
           {data.external_identities.length > 0 ? (
             <section aria-labelledby="user-identities" className="flex flex-col gap-2">
               <h3 id="user-identities" className="text-[13px] font-semibold text-ink">
@@ -163,10 +191,17 @@ function UserDrawer({ userId, onClose }: { userId: string | null; onClose: () =>
   );
 }
 
-function membershipSummary(user: UserListItem): string {
-  if (user.memberships.length === 0) return 'Personal account';
-  const [first, ...rest] = user.memberships;
-  return rest.length > 0 ? `${first.institution.name} +${rest.length}` : first.institution.name;
+function InstitutionCell({ user }: { user: UserListItem }) {
+  const membership = currentMembership(user);
+  if (!membership) return <span className="text-ink-muted">Personal account</span>;
+  const { label } = membership;
+  return (
+    <span className="flex items-center gap-2">
+      <span className="min-w-0 truncate">{membership.institution.name}</span>
+      {membership.status === 'pending' ? <StatusChip status="pending" /> : null}
+      {label ? <CoverageChip label={label} /> : null}
+    </span>
+  );
 }
 
 export function UsersPage() {
@@ -213,7 +248,7 @@ export function UsersPage() {
             <tr>
               <Th>User</Th>
               <Th>Status</Th>
-              <Th>Institutions</Th>
+              <Th>Institution</Th>
               <Th>Last sign-in</Th>
               <Th>Created</Th>
             </tr>
@@ -236,7 +271,9 @@ export function UsersPage() {
                   <Td>
                     <StatusChip status={user.status} />
                   </Td>
-                  <Td className="max-w-64 truncate">{membershipSummary(user)}</Td>
+                  <Td className="max-w-80">
+                    <InstitutionCell user={user} />
+                  </Td>
                   <Td className="tabular whitespace-nowrap" title={formatDateTime(user.last_login_at)}>
                     {formatRelative(user.last_login_at)}
                   </Td>

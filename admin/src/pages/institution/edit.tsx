@@ -161,7 +161,7 @@ export function EditInstitutionDialog({ institution, open, onOpenChange }: EditI
         <Field label="Contact email" error={shown.contact_email}>
           {(props) => <Input {...props} type="email" value={draft.contact_email} onChange={(event) => set({ contact_email: event.target.value })} />}
         </Field>
-        <Field label="Sign-in domains" error={shown.sign_in_domains} hint="Comma-separated. Blank allows any email.">
+        <Field label="Sign-in domains" error={shown.sign_in_domains} hint="Comma-separated, e.g. example.edu. People who sign up with a verified email on one of these join the institution. A domain can belong to one institution only.">
           {(props) => <Input {...props} value={draft.domains} spellCheck={false} onChange={(event) => set({ domains: event.target.value })} />}
         </Field>
         <Field label="Seat cap" error={shown.seat_cap} hint={`${institution.seats.used} seats in use. Blank means no cap.`}>

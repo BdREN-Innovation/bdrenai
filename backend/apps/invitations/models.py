@@ -99,3 +99,34 @@ class Invitation(models.Model):
 
     def __str__(self):
         return f"{self.email} -> {self.organization_id or 'individual'} ({self.status})"
+
+
+class Notice(models.Model):
+    """A one-off informational email, such as "you were added to the institution's package", sent by the same
+    outbox as invitations: inline after commit up to INVITATION_INLINE_EMAILS, the rest by the mail worker."""
+
+    class Kind(models.TextChoices):
+        COVERED = "covered"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    kind = models.CharField(max_length=32, choices=Kind.choices)
+    email = models.EmailField()
+    organization = models.ForeignKey(
+        "organizations.Organization", null=True, blank=True, on_delete=models.CASCADE, related_name="notices"
+    )
+    subject = models.CharField(max_length=255)
+    body_text = models.TextField()
+    body_html = models.TextField()
+    email_status = models.CharField(
+        max_length=16, choices=Invitation.EmailStatus.choices, default=Invitation.EmailStatus.QUEUED
+    )
+    created_at = models.DateTimeField(default=timezone.now)
+    sent_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        indexes = [
+            models.Index(
+                fields=["created_at"], name="notice_outbox",
+                condition=models.Q(email_status__in=["queued", "sending"]),
+            ),
+        ]

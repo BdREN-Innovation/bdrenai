@@ -2,7 +2,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { NAV_LINKS } from "@/content/site";
 import { ADMIN_CONSOLE_URL, MyProfile, PROFILE_EVENT, PROFILE_PATH, apiFetch, logout } from "@/lib/api";
-import { AdminInstitution, fetchAdminInstitutions, membersPagePath } from "@/lib/portal";
+import { AdminInstitution, fetchAdminInstitutions, membersConsoleUrl } from "@/lib/portal";
 import { Avatar } from "./Avatar";
 import { Logo } from "./Logo";
 
@@ -72,7 +72,7 @@ function ProfileMenu({ user }: { user: MyProfile }) {
             My profile
           </a>
           {institutions.map((i) => (
-            <a key={i.slug} role="menuitem" href={membersPagePath(i.slug)} className="flex min-h-[48px] items-center gap-3 px-4 py-2 hover:bg-ground">
+            <a key={i.slug} role="menuitem" href={membersConsoleUrl(i.slug)} className="flex min-h-[48px] items-center gap-3 px-4 py-2 hover:bg-ground">
               <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="flex-none">
                 <circle cx="9" cy="8" r="3.5" />
                 <path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6M16 4.5a3.5 3.5 0 0 1 0 7M18 14c2.2.6 3.5 2.8 3.5 6" />

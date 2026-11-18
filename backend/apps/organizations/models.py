@@ -37,7 +37,8 @@ class Organization(models.Model):
     sector = models.CharField(max_length=16, choices=Sector.choices, blank=True)
     timezone = models.CharField(max_length=64, default=DEFAULT_TIMEZONE, validators=[validate_timezone])
     contact_email = models.EmailField(blank=True)
-    # Lowercase email domains allowed to join; empty = any email.
+    # Lowercase email domains (subdomains included) that confirm a sign-up's choice of this institution;
+    # unique across institutions. Invitations accept any email.
     sign_in_domains = models.JSONField(default=list, blank=True, validators=[validate_domains])
     # Institution-wide seat cap across all apps; null = unlimited.
     seat_cap = models.PositiveIntegerField(null=True, blank=True)
@@ -60,20 +61,31 @@ class Membership(models.Model):
 
     class Status(models.TextChoices):
         ACTIVE = "active"
-        PENDING = "pending"  # asked to join at sign-up; grants nothing until an admin approves
+        PENDING = "pending"  # chose this institution at sign-up; awaits a verified email on its domains
         SUSPENDED = "suspended"
         DEPROVISIONED = "deprovisioned"
+
+    class Coverage(models.TextChoices):
+        """`institution`: on the institution's package, holding a seat. `none`: affiliated only (free tier or a
+        personal plan)."""
+
+        INSTITUTION = "institution"
+        NONE = "none"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="memberships")
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="memberships")
     role = models.CharField(max_length=16, choices=Role.choices, default=Role.MEMBER)
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.ACTIVE)
+    coverage = models.CharField(max_length=16, choices=Coverage.choices, default=Coverage.INSTITUTION)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         constraints = [
             models.UniqueConstraint(fields=["user", "organization"], name="uniq_membership_user_org"),
+            models.UniqueConstraint(
+                fields=["user"], condition=~models.Q(status="deprovisioned"), name="uniq_membership_one_institution",
+            ),
         ]
 
 

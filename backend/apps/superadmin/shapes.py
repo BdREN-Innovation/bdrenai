@@ -1,6 +1,7 @@
 """JSON shapes of the superadmin API (docs/SUPERADMIN_API.md). Querysets come from `services`, annotated."""
 from decimal import Decimal
 
+from apps.invitations.services import membership_label
 from apps.invitations.shapes import iso, person
 from apps.packages.services import AppsChange, TermChange
 
@@ -75,6 +76,8 @@ def institution_detail(org):
             "pending_invitations": org.pending_invitations,
             "expired_invitations": org.expired_invitations,
             "pending_requests": org.pending_requests,
+            "not_covered": org.not_covered_members,
+            "personal_plan": org.personal_plan_members,
         },
         "admins": [
             {
@@ -92,11 +95,14 @@ def institution_detail(org):
 
 
 def user_membership(membership):
+    """Needs the `with_labels` annotations (`services.users()`), so `label` costs no query."""
     return {
         "membership_id": str(membership.id),
         "institution": institution_ref(membership.organization),
         "role": membership.role,
         "status": membership.status,
+        "coverage": membership.coverage,
+        "label": membership_label(membership),
     }
 
 

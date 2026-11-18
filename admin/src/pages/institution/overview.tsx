@@ -33,7 +33,7 @@ export function Overview({ institution, onEdit }: { institution: InstitutionDeta
         {overCap ? <Notice tone="danger">More seats are in use than the cap allows. New invites and approvals are blocked.</Notice> : null}
         <Card
           title="Seats"
-          description="Active members plus pending invitations, across every app."
+          description="Covered members (active or suspended) plus pending invitations, across every app."
           action={<Button size="sm" icon={Pencil} onClick={onEdit}>Change cap</Button>}
         >
           <SeatMeter seats={seats} />
@@ -41,9 +41,11 @@ export function Overview({ institution, onEdit }: { institution: InstitutionDeta
             <p className="text-xs text-ink-muted">Last cap change: {institution.seat_cap_reason}</p>
           ) : null}
           <div className="grid grid-cols-2 gap-5 border-t border-stroke-muted pt-4 sm:grid-cols-3">
-            <Stat label="Active members" value={counts.active} />
-            <Stat label="Suspended" value={counts.suspended} />
-            <Stat label="All members" value={counts.members} />
+            <Stat label="Covered, active" value={counts.active} />
+            <Stat label="Covered, suspended" value={counts.suspended} />
+            <Stat label="Covered members" value={counts.members} />
+            <Stat label="Not covered" value={counts.not_covered} />
+            <Stat label="Personal plan" value={counts.personal_plan} />
             <Stat label="Pending invitations" value={counts.pending_invitations} />
             <Stat label="Expired invitations" value={counts.expired_invitations} />
             <Stat label="Sign-up requests" value={counts.pending_requests} />
@@ -88,7 +90,7 @@ export function Overview({ institution, onEdit }: { institution: InstitutionDeta
           <dt className="text-ink-muted">Sign-in domains</dt>
           <dd>
             {institution.sign_in_domains.length === 0 ? (
-              'Any email'
+              'None; sign-ups join only by invitation'
             ) : (
               <span className="flex flex-wrap gap-1">
                 {institution.sign_in_domains.map((domain) => (

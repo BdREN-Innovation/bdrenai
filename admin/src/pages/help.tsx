@@ -28,7 +28,7 @@ export function HelpPage() {
               Press ⌘K (Ctrl K on Windows and Linux) to jump to any page or institution, or to change the theme.
             </Tip>
             <Tip icon={Building2} title="Institutions and seats">
-              Seats count active members plus pending invitations across every app. Invites, imports and approvals stop at the seat cap.
+              Seats count covered members (active or suspended) plus pending invitations across every app. People who joined with their institution email but are not on the package are listed as Not covered and use no seat. A person belongs to one institution at most; Take out of institution on the Members tab moves them out.
             </Tip>
             <Tip icon={Mail} title="Invitations">
               Invite an institution admin from Invitations; if the institution is not listed, create it in the same dialog. Resend gives a new link and the old one stops working.

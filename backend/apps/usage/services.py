@@ -2,17 +2,18 @@
 from datetime import timedelta
 
 from django.db import IntegrityError, transaction
+from django.db.models import F
 from django.utils import timezone
 
 from apps.accounts.models import Account
 from apps.entitlements.services import (
     current_period_bounds,
     effective_entitlement_for_account,
-    resolve_candidate_accounts,
+    plan_accounts,
 )
 from apps.products.models import Feature, Product
 
-from .models import UsageCounter, UsageEvent, UsageReservation
+from .models import UsageCounter, UsageDaily, UsageEvent, UsageReservation, usage_day
 
 DEFAULT_RESERVATION_TTL_SECONDS = 300
 
@@ -84,9 +85,10 @@ def check_entitlement_status(
     """Evaluates whether `quantity` units of `feature` are allowed under the configured mixed-quota policy."""
     now = timezone.now()
     policy = policy_override or feature.quota_policy
-    candidates = resolve_candidate_accounts(
-        user=user, organization_account=organization_account, quota_policy=policy
+    candidates, covering = plan_accounts(
+        user=user, organization_account=organization_account, quota_policy=policy, product=product
     )
+    free_fallback = covering is None
     if not candidates:
         return {
             "allowed": False,
@@ -103,7 +105,7 @@ def check_entitlement_status(
         # Both personal and organization accounts must have sufficient remaining quota
         snapshots = []
         for acct in candidates:
-            ent = effective_entitlement_for_account(acct, product, feature, now)
+            ent = effective_entitlement_for_account(acct, product, feature, now, free_fallback=free_fallback)
             if ent is None:
                 return {
                     "allowed": False,
@@ -136,7 +138,7 @@ def check_entitlement_status(
     # Priority policies: PERSONAL_ONLY, ORGANIZATION_ONLY, PERSONAL_THEN_ORG, ORG_THEN_PERSONAL
     last_report = None
     for acct in candidates:
-        ent = effective_entitlement_for_account(acct, product, feature, now)
+        ent = effective_entitlement_for_account(acct, product, feature, now, free_fallback=free_fallback)
         if ent is None:
             continue
         counter = _lock_counter(acct, product, feature, ent.period, now)
@@ -186,9 +188,10 @@ def reserve_quota(
         raise ValueError("quantity must be positive")
     now = timezone.now()
     policy = feature.quota_policy
-    candidates = resolve_candidate_accounts(
-        user=user, organization_account=organization_account, quota_policy=policy
+    candidates, covering = plan_accounts(
+        user=user, organization_account=organization_account, quota_policy=policy, product=product
     )
+    free_fallback = covering is None
     if not candidates:
         raise QuotaExceededError("No eligible account with entitlement found")
 
@@ -196,13 +199,15 @@ def reserve_quota(
     existing = UsageReservation.objects.filter(
         account__in=candidates, product=product, idempotency_key=idempotency_key
     ).select_related("counter").first()
+    if existing is not None and existing.user_id != user.id:
+        raise ReservationStateError("Idempotency key already used by another member's reservation")
     if existing is not None:
         return existing
 
     # Choose the first candidate account that has sufficient remaining quota
     chosen = None
     for acct in candidates:
-        ent = effective_entitlement_for_account(acct, product, feature, now)
+        ent = effective_entitlement_for_account(acct, product, feature, now, free_fallback=free_fallback)
         if ent is None:
             continue
         counter = _lock_counter(acct, product, feature, ent.period, now)
@@ -223,6 +228,7 @@ def reserve_quota(
         product=product,
         feature=feature,
         counter=counter,
+        user=user,
         quantity=quantity,
         status=UsageReservation.Status.RESERVED,
         idempotency_key=idempotency_key,
@@ -261,18 +267,43 @@ def commit_reservation(*, reservation_id, idempotency_key: str = None, metadata:
     res.save(update_fields=["status"])
 
     event_key = idempotency_key or f"commit:{res.idempotency_key}"
-    event, _ = UsageEvent.objects.get_or_create(
+    event, created = UsageEvent.objects.get_or_create(
         account=res.account,
         product=res.product,
         idempotency_key=event_key,
         defaults={
             "feature": res.feature,
             "reservation": res,
+            "user_id": res.user_id,
             "quantity": res.quantity,
             "metadata": metadata if metadata is not None else res.metadata,
         },
     )
+    if not created:
+        raise ReservationStateError("Commit idempotency key already used by another reservation")
+    _add_to_daily(event)
     return res, event
+
+
+def _add_to_daily(event: UsageEvent):
+    """Adds one committed event to its UsageDaily bucket; must run inside the commit transaction."""
+    bucket = {
+        "account_id": event.account_id,
+        "product_id": event.product_id,
+        "feature_id": event.feature_id,
+        "user_id": event.user_id,
+        "day": usage_day(event.created_at),
+    }
+    increment = {"quantity": F("quantity") + event.quantity, "requests": F("requests") + 1}
+    if UsageDaily.objects.filter(**bucket).update(**increment):
+        return
+    try:
+        with transaction.atomic():
+            UsageDaily.objects.create(**bucket, quantity=event.quantity, requests=1)
+        return
+    except IntegrityError:
+        pass
+    UsageDaily.objects.filter(**bucket).update(**increment)
 
 
 @transaction.atomic

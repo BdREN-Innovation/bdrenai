@@ -89,11 +89,19 @@ def test_failed_admin_invitation_leaves_no_half_made_institution():
     with pytest.raises(ServiceError) as e:
         services.create_institution(
             data={"name": "Strict University", "slug": "strict", "sign_in_domains": ["strict.edu"]},
-            admin={"email": "admin@gmail.com"},
+            admin={"email": "not-an-email"},
         )
-    assert code_of(e) == ("domain_not_allowed", 400) and "admin.email" in e.value.fields
+    assert code_of(e) == ("invalid", 400) and "admin.email" in e.value.fields
     assert not Organization.objects.filter(slug="strict").exists()
     assert not Account.objects.filter(organization__slug="strict").exists()
+
+
+def test_admin_invitation_accepts_any_email_domain():
+    created = services.create_institution(
+        data={"name": "Open University", "slug": "open", "sign_in_domains": ["open.edu"]},
+        admin={"email": "admin@gmail.com"},
+    )
+    assert created.invited.invitation.email == "admin@gmail.com"
 
 
 def test_partial_clean_only_returns_given_fields():
@@ -126,13 +134,25 @@ def test_activating_a_member_is_seat_checked(org):
     assert entry.metadata["changes"] == {"status": ["pending", "active"]} and entry.metadata["reason"] == "approved"
 
 
-def test_reactivating_a_suspended_member_needs_a_free_seat(org):
+def test_a_suspended_member_keeps_their_seat(org):
     org.seat_cap = 1
     org.save()
     suspended = add_member(org, status=Membership.Status.SUSPENDED)
+    assert services.seats_used(org) == 1
+    with pytest.raises(ServiceError) as e:
+        services.create_invitation(organization=org, email="new@du.ac.bd", source=SOURCE)
+    assert code_of(e) == ("seat_cap_reached", 409)
+    assert services.update_membership(suspended, status="active", source=SOURCE).status == Membership.Status.ACTIVE
+
+
+def test_reviving_a_removed_member_needs_a_free_seat(org):
+    org.seat_cap = 1
+    org.save()
+    removed = add_member(org, status=Membership.Status.DEPROVISIONED)
     make_invitation(org, "holder@du.ac.bd")
-    with pytest.raises(ServiceError):
-        services.update_membership(suspended, status="active", source=SOURCE)
+    with pytest.raises(ServiceError) as e:
+        services.update_membership(removed, status="active", source=SOURCE)
+    assert code_of(e) == ("seat_cap_reached", 409)
 
 
 def test_last_admin_is_protected(org):

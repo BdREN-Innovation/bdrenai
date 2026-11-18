@@ -20,6 +20,13 @@ export interface ApiErrorBody {
   fields?: Record<string, string>;
   seats_used?: number;
   seat_cap?: number | null;
+  conflicts?: DomainConflict[];
+}
+
+/** A sign-in domain another institution already lists (409 `domain_taken`). */
+export interface DomainConflict {
+  domain: string;
+  institution: InstitutionRef;
 }
 
 export interface Seats {
@@ -35,6 +42,9 @@ export type MembershipStatus = 'active' | 'suspended' | 'pending' | 'deprovision
 export type UserStatus = 'active' | 'suspended' | 'deactivated';
 export type InvitationStatus = 'pending' | 'accepted' | 'revoked' | 'expired';
 export type InvitationSource = 'superadmin' | 'portal' | 'import';
+/** `institution` = covered by the institution's package; `none` = affiliated only (free tier or a personal plan). */
+export type Coverage = 'institution' | 'none';
+export type MemberLabel = 'covered' | 'invited' | 'not_covered' | 'personal_plan';
 
 export interface InstitutionRef {
   slug: string;
@@ -134,6 +144,8 @@ export interface InstitutionCounts {
   pending_invitations: number;
   expired_invitations: number;
   pending_requests: number;
+  not_covered: number;
+  personal_plan: number;
 }
 
 export interface InstitutionDetail {
@@ -210,6 +222,9 @@ export interface Member {
   user: PersonRef & { status: UserStatus };
   role: Role;
   status: MembershipStatus;
+  coverage: Coverage;
+  /** null for pending sign-up requests and removed memberships. */
+  label: MemberLabel | null;
   joined_at: ISODate | null;
 }
 
@@ -226,21 +241,26 @@ export type ImportReason =
   | 'duplicate_in_file'
   | 'already_member'
   | 'already_invited'
+  | 'member_of_other_institution'
   | 'bad_role'
-  | 'over_cap'
-  | 'domain_not_allowed';
+  | 'over_cap';
+
+/** What the real run does with an `ok` row: invite, cover an affiliated free-tier member, or invite a personal-plan member for consent. */
+export type ImportAction = 'invite' | 'cover' | 'consent_invite';
 
 export interface ImportRowResult {
   index: number;
   email: string;
   status: ImportRowStatus;
   reason?: ImportReason | null;
+  action?: ImportAction | null;
 }
 
 export interface ImportResponse {
   rows: ImportRowResult[];
-  summary: { ok: number; error: number; skip: number; fits: number; seats: Seats };
+  summary: { ok: number; error: number; skip: number; fits: number; actions?: Record<ImportAction, number>; seats: Seats };
   created: number;
+  covered?: number;
   email_failures: number;
   email_queued: number;
 }
@@ -257,6 +277,9 @@ export interface UserMembership {
   institution: InstitutionRef;
   role: Role;
   status: MembershipStatus;
+  coverage: Coverage;
+  /** Same as `Member.label`; null for pending sign-up requests and removed memberships. */
+  label: MemberLabel | null;
 }
 
 export interface UserListItem {
@@ -315,7 +338,10 @@ export type CreateInvitationBody =
   | { institution: null; email: string; name: string };
 
 export interface CreateInvitationResponse {
-  invitation: Invitation;
+  /** `covered`: the email belonged to an affiliated free-tier member, who was added to the package at once (no invitation). */
+  outcome: 'invited' | 'covered';
+  invitation: Invitation | null;
+  member: Member | null;
   institution: InstitutionDetail | null;
   email_sent: boolean;
   warning?: 'institution_suspended';
@@ -356,6 +382,8 @@ export interface InstitutionListParams extends ListParams {
 export interface MemberListParams extends ListParams {
   status?: MembershipStatus;
   role?: Role;
+  coverage?: Coverage;
+  label?: MemberLabel;
 }
 
 export interface UserListParams extends ListParams {

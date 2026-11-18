@@ -27,7 +27,7 @@ describe('InvitationsPage', () => {
     const { api } = renderApp('/invitations', {
       [`GET ${API}/invitations/`]: page([]),
       [`GET ${API}/institutions/options/`]: options,
-      [`POST ${API}/invitations/`]: reply(201, { invitation, institution: null, email_sent: true }),
+      [`POST ${API}/invitations/`]: reply(201, { outcome: 'invited', invitation, member: null, institution: null, email_sent: true }),
     });
 
     await user.click(await screen.findByRole('button', { name: 'Invite institution admin' }));
@@ -47,12 +47,64 @@ describe('InvitationsPage', () => {
     expect(await screen.findByText('Invitation sent to karim@du.ac.bd.')).toBeInTheDocument();
   });
 
+  it('reports that an affiliated member was added to the package instead of invited', async () => {
+    const user = userEvent.setup();
+    renderApp('/invitations', {
+      [`GET ${API}/invitations/`]: page([]),
+      [`GET ${API}/institutions/options/`]: options,
+      [`POST ${API}/invitations/`]: reply(201, {
+        outcome: 'covered',
+        invitation: null,
+        member: {
+          membership_id: 'm-9',
+          user: { id: 'u-9', name: 'Sadia Rahman', email: 'sadia@du.ac.bd', status: 'active' },
+          role: 'admin',
+          status: 'active',
+          coverage: 'institution',
+          label: 'covered',
+          joined_at: '2026-11-01T00:00:00Z',
+        },
+        institution: institutionDetail,
+        email_sent: true,
+      }),
+    });
+
+    await user.click(await screen.findByRole('button', { name: 'Invite institution admin' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Invite institution admin' });
+    await user.type(within(dialog).getByRole('combobox', { name: /Institution/ }), 'Dhaka');
+    await user.click(await within(dialog).findByRole('option', { name: /^Dhaka University/ }));
+    await user.type(within(dialog).getByLabelText(/^Email/), 'sadia@du.ac.bd');
+    await user.click(within(dialog).getByRole('button', { name: 'Send invitation' }));
+
+    expect(await screen.findByText('Sadia Rahman already belonged to Dhaka University and is now on its package. No invitation was needed.')).toBeInTheDocument();
+  });
+
+  it('explains that the invited person belongs to another institution', async () => {
+    const user = userEvent.setup();
+    renderApp('/invitations', {
+      [`GET ${API}/invitations/`]: page([]),
+      [`GET ${API}/institutions/options/`]: options,
+      [`POST ${API}/invitations/`]: reply(409, { error: 'member_of_other_institution', message: 'Member elsewhere' }),
+    });
+
+    await user.click(await screen.findByRole('button', { name: 'Invite institution admin' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Invite institution admin' });
+    await user.type(within(dialog).getByRole('combobox', { name: /Institution/ }), 'Dhaka');
+    await user.click(await within(dialog).findByRole('option', { name: /^Dhaka University/ }));
+    await user.type(within(dialog).getByLabelText(/^Email/), 'moved@gmail.com');
+    await user.click(within(dialog).getByRole('button', { name: 'Send invitation' }));
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(/already belongs to another institution/);
+  });
+
   it('creates a new institution from the picker in the same dialog', async () => {
     const user = userEvent.setup();
     const { api } = renderApp('/invitations', {
       [`GET ${API}/invitations/`]: page([]),
       [`GET ${API}/institutions/options/`]: options,
       [`POST ${API}/invitations/`]: reply(201, {
+        outcome: 'invited',
+        member: null,
         invitation: { ...invitation, email: 'head@iub.edu.bd' },
         institution: { ...institutionDetail, slug: 'independent-university', name: 'Independent University' },
         email_sent: true,
@@ -115,7 +167,7 @@ describe('InvitationsPage', () => {
     const user = userEvent.setup();
     const { api } = renderApp('/invitations', {
       [`GET ${API}/invitations/`]: page([]),
-      [`POST ${API}/invitations/`]: reply(201, { invitation: { ...invitation, institution: null, email: 'solo@gmail.com' }, institution: null, email_sent: true }),
+      [`POST ${API}/invitations/`]: reply(201, { outcome: 'invited', member: null, invitation: { ...invitation, institution: null, email: 'solo@gmail.com' }, institution: null, email_sent: true }),
     });
     await user.click(await screen.findByRole('button', { name: 'Invite individual user' }));
     const dialog = await screen.findByRole('dialog', { name: 'Invite individual user' });

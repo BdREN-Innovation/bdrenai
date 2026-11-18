@@ -139,4 +139,25 @@ describe('InstitutionsPage', () => {
     expect(await within(dialog).findByText('Already used.')).toBeInTheDocument();
     expect(within(dialog).getByRole('alert')).toHaveTextContent('That slug is already used by another institution.');
   });
+
+  it('names the institution that already holds a sign-in domain', async () => {
+    const user = userEvent.setup();
+    const { api } = renderApp('/institutions', {
+      [`GET ${API}/institutions/`]: page([institutionItem]),
+      [`POST ${API}/institutions/`]: reply(409, {
+        error: 'domain_taken',
+        message: 'A sign-in domain can belong to one institution only.',
+        fields: { sign_in_domains: 'du.ac.bd belongs to Dhaka University.' },
+        conflicts: [{ domain: 'du.ac.bd', institution: { slug: 'dhaka-university', name: 'Dhaka University' } }],
+      }),
+    });
+    await user.click(await screen.findByRole('button', { name: 'Create institution' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Create institution' });
+    await user.type(within(dialog).getByRole('combobox', { name: /Institution name/ }), 'Dhaka Copy');
+    await user.type(within(dialog).getByLabelText(/Sign-in domains/), 'du.ac.bd');
+    await user.click(within(dialog).getByRole('button', { name: 'Create institution' }));
+    expect(await within(dialog).findByText('du.ac.bd belongs to Dhaka University.')).toBeInTheDocument();
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('du.ac.bd already belongs to Dhaka University. A sign-in domain can belong to one institution only.');
+    expect(api.find('POST', `${API}/institutions/`)[0].body).toMatchObject({ sign_in_domains: ['du.ac.bd'] });
+  });
 });

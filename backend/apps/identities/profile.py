@@ -36,7 +36,7 @@ def avatar_url(user):
 def serialize(user):
     first, last = _split_name(user)
     memberships = [
-        {"organization": m.organization.name, "role": m.role, "status": m.status}
+        {"organization": m.organization.name, "role": m.role, "status": m.status, "coverage": m.coverage}
         for m in user.memberships.select_related("organization").order_by("organization__name")
     ]
     return {
@@ -109,7 +109,7 @@ def _money(amount):
 
 
 def billing(user):
-    """Plans and payments for every account the user can act for (personal + active institutions)."""
+    """Plans and payments for every account the user can act for (personal + the institution covering them)."""
     accounts = list(accessible_accounts_for_user(user))
     label = {
         a.id: ("Personal" if a.account_type == a.Type.PERSONAL else (a.organization.name if a.organization else "Institution"))
@@ -135,6 +135,7 @@ def billing(user):
                 "currency": s.package_version.package.currency,
                 "starts_at": s.starts_at.date().isoformat(),
                 "expires_at": s.expires_at.date().isoformat() if s.expires_at else None,
+                "auto_renew": s.auto_renew,
             }
             for s in subs
         ],

@@ -7,6 +7,11 @@ export const session: t.Session = {
   roles: ['platform_super_admin'],
 };
 
+/** Institution-admin portal API root (`/api/v1/portal/institutions`). */
+export const PORTAL = '/api/v1/portal/institutions';
+
+export const profile = { id: 'u-self', name: 'Boss Admin', email: 'boss@bdren.ai', is_superadmin: true };
+
 export const actor = { id: 'u-self', name: 'Boss Admin', email: 'boss@bdren.ai' };
 
 export function page<T>(results: T[], count = results.length): t.Page<T> {
@@ -51,7 +56,7 @@ export const institutionDetail: t.InstitutionDetail = {
   sign_in_domains: ['du.ac.bd'],
   seats: { used: 95, cap: 100 },
   seat_cap_reason: 'Initial package',
-  counts: { members: 92, active: 90, suspended: 2, pending_invitations: 5, expired_invitations: 1, pending_requests: 1 },
+  counts: { members: 92, active: 90, suspended: 2, pending_invitations: 5, expired_invitations: 1, pending_requests: 1, not_covered: 3, personal_plan: 1 },
   admins: [{ membership_id: 'm-1', user_id: 'u-2', name: 'Rahim Uddin', email: 'rahim@du.ac.bd', role: 'admin' }],
   created_at: '2026-10-01T00:00:00Z',
   updated_at: '2026-11-01T00:00:00Z',
@@ -84,7 +89,7 @@ export const user: t.UserListItem = {
   created_at: '2026-10-02T00:00:00Z',
   last_login_at: '2026-11-17T00:00:00Z',
   memberships: [
-    { membership_id: 'm-1', institution: { slug: 'dhaka-university', name: 'Dhaka University' }, role: 'admin', status: 'active' },
+    { membership_id: 'm-1', institution: { slug: 'dhaka-university', name: 'Dhaka University' }, role: 'admin', status: 'active', coverage: 'institution', label: 'covered' },
   ],
   is_superadmin: false,
 };

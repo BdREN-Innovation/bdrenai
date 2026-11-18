@@ -1,8 +1,11 @@
-import { FormResult, getJson } from "./api";
+import { ADMIN_CONSOLE_URL, FormResult, getJson } from "./api";
 
-export type PortalRole = "member" | "admin";
-export type MemberRole = PortalRole | "owner" | "billing";
-export type MemberStatus = "active" | "suspended" | "pending" | "deprovisioned";
+/**
+ * What the website still needs of the institution admin console: invitation acceptance (`/invite/<token>`), and
+ * links from the profile menu and page into the console, which lives in the admin SPA (`<ADMIN_CONSOLE_URL>portal/`).
+ */
+
+export type MemberRole = "member" | "admin" | "owner" | "billing";
 export type InvitationStatus = "pending" | "accepted" | "revoked" | "expired";
 
 /** `cap` null means unlimited. */
@@ -11,70 +14,13 @@ export interface Seats {
   cap: number | null;
 }
 
-export interface Paged<T> {
-  results: T[];
-  count: number;
-  page: number;
-  page_size: number;
-}
-
-/** Suspended institutions are listed too, so the menu can still lead to the page that explains it. */
+/** Suspended institutions are listed too, so the menu can still lead to the console page that explains it. */
 export interface AdminInstitution {
   slug: string;
   name: string;
   status: "active" | "suspended";
   seats: Seats;
   role: MemberRole;
-}
-
-export interface InstitutionCounts {
-  members: number;
-  active: number;
-  suspended: number;
-  pending_invitations: number;
-  expired_invitations: number;
-  pending_requests: number;
-}
-
-export interface PortalInstitution {
-  slug: string;
-  name: string;
-  seats: Seats;
-  counts: InstitutionCounts;
-  sign_in_domains: string[];
-}
-
-export interface Member {
-  membership_id: string;
-  user: { id: string; name: string; email: string; status: string };
-  role: MemberRole;
-  status: MemberStatus;
-  joined_at: string | null;
-}
-
-export interface PersonRef {
-  id: string;
-  name: string;
-  email?: string;
-}
-
-export interface Invitation {
-  id: string;
-  email: string;
-  name: string;
-  institution: { slug: string; name: string } | null;
-  /** null for an individual (no institution) invitation. */
-  role: MemberRole | null;
-  status: InvitationStatus;
-  source: string;
-  invited_by: PersonRef | null;
-  expires_at: string;
-  created_at: string;
-  last_sent_at: string;
-  sent_count: number;
-  email_status: "queued" | "sending" | "sent" | "failed";
-  accepted_by: PersonRef | null;
-  accepted_at: string | null;
 }
 
 export interface InvitationPreview {
@@ -88,35 +34,19 @@ export interface InvitationPreview {
   expires_at: string;
   signed_in: boolean;
   email_matches: boolean;
+  /** The matching signed-in user pays for a personal plan: accepting stops it renewing (needs their consent). */
+  ends_personal_plan: boolean;
+  /** When that personal plan runs out (null if it never expires or `ends_personal_plan` is false). */
+  personal_plan_ends_at: string | null;
 }
 
 export interface AcceptResult {
   institution: { slug: string; name: string } | null;
   role: MemberRole | null;
+  /** `/profile`, or `/admin/portal/<slug>/members` for an institution admin. */
   redirect: string;
-}
-
-export interface ImportRow {
-  email: string;
-  name: string;
-  role: string;
-}
-
-export type ImportReason =
-  | "invalid_email"
-  | "duplicate_in_file"
-  | "already_member"
-  | "already_invited"
-  | "bad_role"
-  | "over_cap"
-  | "domain_not_allowed";
-
-export interface ImportResult {
-  rows: { index: number; email: string; status: "ok" | "error" | "skip"; reason: ImportReason | null }[];
-  summary: { ok: number; error: number; skip: number; fits: number; seats: Seats };
-  created: number;
-  email_failures: number;
-  email_queued: number;
+  /** Accepting set the person's paid personal plan not to renew. */
+  renewal_stopped: boolean;
 }
 
 /** Fields the API adds to a 409 `seat_cap_reached` body. */
@@ -128,25 +58,26 @@ interface SeatCapError {
 export const PORTAL_PATH = "/api/v1/portal/institutions/";
 export const INVITATION_PATH = "/api/v1/invitations/";
 
-export function institutionPath(slug: string): string {
-  return `${PORTAL_PATH}${encodeURIComponent(slug)}/`;
+export type ConsolePage = "dashboard" | "usage" | "members" | "domains";
+
+const ADMIN_PREFIX = "/admin/";
+const CONSOLE_BASE = ADMIN_CONSOLE_URL.endsWith("/") ? ADMIN_CONSOLE_URL : `${ADMIN_CONSOLE_URL}/`;
+
+/** A page of the institution admin console in the admin app, e.g. `/admin/portal/du/members`. */
+export function consolePageUrl(slug: string, page: ConsolePage): string {
+  return `${CONSOLE_BASE}portal/${encodeURIComponent(slug)}/${page}`;
 }
 
-export function membersPagePath(slug: string): string {
-  return `/portal/${encodeURIComponent(slug)}/members`;
+export function membersConsoleUrl(slug: string): string {
+  return consolePageUrl(slug, "members");
 }
 
-export function query(params: Record<string, string | number>): string {
-  const q = new URLSearchParams();
-  Object.entries(params).forEach(([k, v]) => {
-    if (v !== "" && v !== undefined) q.set(k, String(v));
-  });
-  const s = q.toString();
-  return s ? `?${s}` : "";
-}
-
-export function seatsFull(seats: Seats): boolean {
-  return seats.cap !== null && seats.used >= seats.cap;
+/**
+ * Where a server-given site path leads: paths under `/admin/` belong to the admin app, which local development serves
+ * from another origin (NEXT_PUBLIC_ADMIN_URL); anything else stays on this site. Expects a `safeNext`-checked path.
+ */
+export function siteUrl(path: string): string {
+  return path.startsWith(ADMIN_PREFIX) ? `${CONSOLE_BASE}${path.slice(ADMIN_PREFIX.length)}` : path;
 }
 
 export function seatCapMessage(used: number | undefined, cap: number | undefined): string {
@@ -155,13 +86,10 @@ export function seatCapMessage(used: number | undefined, cap: number | undefined
 }
 
 const ERROR_MESSAGES: Record<string, string> = {
-  already_member: "This person is already a member of your institution.",
-  already_invited: "This email already has a pending invitation. Resend it from the Invitations tab.",
-  bad_role: "Choose Member or Admin.",
-  last_admin: "Your institution needs at least one active admin, so this change isn't allowed.",
   invitation_not_pending: "This invitation is no longer pending.",
   institution_suspended: "Your institution is suspended. Contact BdREN to restore access.",
-  domain_not_allowed: "This email's domain isn't one your institution signs in with.",
+  member_of_other_institution: "You already belong to another institution. Contact BdREN support to move.",
+  throttled: "Too many requests were sent just now. Wait a minute and try again.",
   network: "We couldn't reach the server. Check your connection and try again.",
 };
 

@@ -5,9 +5,15 @@ import { useRemoveMembership, useUpdateMembership } from '@/api/queries';
 import { ApiError } from '@/api/client';
 import { ROLE_LABEL } from '@/lib/labels';
 
+export interface ActionTarget {
+  membershipId: string;
+  name: string;
+  institution?: string;
+}
+
 export type MembershipAction =
-  | { kind: 'revoke_admin' | 'suspend' | 'activate' | 'approve' | 'remove'; membershipId: string; name: string }
-  | { kind: 'role'; membershipId: string; name: string; role: Role };
+  | (ActionTarget & { kind: 'revoke_admin' | 'suspend' | 'activate' | 'approve' | 'remove' })
+  | (ActionTarget & { kind: 'role'; role: Role });
 
 interface Copy {
   title: string;
@@ -19,17 +25,24 @@ interface Copy {
 
 function copyFor(action: MembershipAction): Copy {
   const { name } = action;
+  const institution = action.institution ?? 'the institution';
   switch (action.kind) {
     case 'revoke_admin':
       return { title: 'Revoke admin role', confirm: 'Revoke', done: `${name} is now a member.`, tone: 'danger', describe: `${name} stays a member but can no longer manage the institution.` };
     case 'suspend':
-      return { title: 'Suspend member', confirm: 'Suspend', done: `${name} suspended.`, tone: 'danger', describe: `${name} loses access to this institution's apps. Their seat is freed.` };
+      return { title: 'Suspend member', confirm: 'Suspend', done: `${name} suspended.`, tone: 'danger', describe: `${name} loses access to this institution's apps. A covered member keeps their seat while suspended.` };
     case 'activate':
-      return { title: 'Reactivate member', confirm: 'Reactivate', done: `${name} reactivated.`, tone: 'primary', describe: `${name} gets access again. This uses a seat.` };
+      return { title: 'Reactivate member', confirm: 'Reactivate', done: `${name} reactivated.`, tone: 'primary', describe: `${name} gets access again. A covered member already holds their seat.` };
     case 'approve':
-      return { title: 'Approve sign-up request', confirm: 'Approve', done: `${name} approved.`, tone: 'primary', describe: `${name} becomes an active member. This uses a seat.` };
+      return { title: 'Approve sign-up request', confirm: 'Approve', done: `${name} approved.`, tone: 'primary', describe: `${name} is confirmed as part of ${institution}, listed as Not covered. No seat is used until an institution admin adds them to the package.` };
     case 'remove':
-      return { title: 'Remove member', confirm: 'Remove', done: `${name} removed.`, tone: 'danger', describe: `${name} is removed from the institution and the seat is freed. The account itself stays.` };
+      return {
+        title: 'Take out of institution',
+        confirm: 'Take out',
+        done: `${name} is no longer part of ${institution}.`,
+        tone: 'danger',
+        describe: `${name} stops belonging to ${institution}: they lose its package, any seat is freed, and they can join another institution. Their account and data stay. Use this to fix a wrong institution.`,
+      };
     case 'role':
       return { title: 'Change role', confirm: 'Change role', done: `${name} is now ${ROLE_LABEL[action.role]}.`, tone: 'primary', describe: `${name} becomes ${ROLE_LABEL[action.role]}.` };
   }

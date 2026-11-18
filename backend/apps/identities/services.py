@@ -5,8 +5,10 @@ from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from apps.accounts.models import Account
+from apps.invitations.errors import ServiceError
 from apps.invitations.services import join_by_institution_sign_in
 from apps.organizations.models import InstitutionalIdentityProvider, Membership, Organization
+from apps.organizations.services import confirm_signup_institution
 
 from .models import ExternalIdentity, User
 
@@ -23,7 +25,8 @@ class AccountLinkingError(Exception):
 
 def _sync_institutional_organization(user, claims):
     """If the user authenticated under a ZITADEL organization linked to a BDREN Organization,
-    verify institutional status and provision/validate their Membership.
+    verify institutional status and provision/validate their Membership (affiliated, not covered: see
+    `join_by_institution_sign_in`). Someone who belongs to another institution signs in without joining.
     """
     zitadel_org_id = claims.get("urn:zitadel:iam:org:id") or claims.get("org_id")
     if not zitadel_org_id:
@@ -40,18 +43,19 @@ def _sync_institutional_organization(user, claims):
     if membership is not None and membership.status != Membership.Status.PENDING:
         raise UserNotAllowed("Institutional membership is disabled or deprovisioned")
 
-    role = Membership.Role.MEMBER
     idp_id = claims.get("urn:zitadel:iam:user:idp:id")
     if membership is None and idp_id:
         idp = InstitutionalIdentityProvider.objects.filter(organization=org, zitadel_idp_id=str(idp_id)).first()
         if idp and idp.status != InstitutionalIdentityProvider.Status.ACTIVE:
             raise UserNotAllowed("Upstream institutional identity provider is disabled")
-        if idp:
-            role = idp.auto_join_role
 
-    # Signing in through the institution's own login proves membership: approve or create it, within the seat cap.
-    membership = join_by_institution_sign_in(org, user, role)
-    if membership.status not in (Membership.Status.ACTIVE, Membership.Status.PENDING):
+    try:
+        with transaction.atomic():
+            membership = join_by_institution_sign_in(org, user)
+    except ServiceError as e:
+        log.warning("institutional sign-in did not join user=%s organization=%s: %s", user.id, org.id, e.code)
+        return None
+    if membership.status != Membership.Status.ACTIVE:
         raise UserNotAllowed("Institutional membership is disabled or deprovisioned")
     return org
 
@@ -109,6 +113,7 @@ def provision_user(claims):
             subject=subject,
             defaults={"user": user, "provider_type": ExternalIdentity.ProviderType.ZITADEL},
         )
+        confirm_signup_institution(user)
         _sync_institutional_organization(user, claims)
 
     if created:

@@ -71,7 +71,7 @@ def test_accept_creates_an_active_membership_with_the_invited_role(org):
     assert r.json() == {
         "institution": {"slug": "du", "name": "University of Dhaka"},
         "role": "admin",
-        "redirect": "/portal/du/members",
+        "redirect": "/admin/portal/du/members", "renewal_stopped": False,
     }
     m = Membership.objects.get(user=user, organization=org)
     assert m.role == Membership.Role.ADMIN and m.status == Membership.Status.ACTIVE
@@ -148,7 +148,7 @@ def test_individual_invitation_ensures_a_personal_account():
     user = make_user("solo@gmail.com")
     assert not Account.objects.filter(owner_user=user).exists()
     r = accept(signed_in(user), token)
-    assert r.json() == {"institution": None, "role": None, "redirect": "/profile"}
+    assert r.json() == {"institution": None, "role": None, "redirect": "/profile", "renewal_stopped": False}
     assert Account.objects.filter(owner_user=user, account_type=Account.Type.PERSONAL).count() == 1
     assert not Membership.objects.filter(user=user).exists()
 
@@ -167,7 +167,7 @@ def test_an_active_member_accepting_gets_a_higher_invited_role_and_the_matching_
     r = accept(signed_in(user), token)
     assert r.json() == {
         "institution": {"slug": "du", "name": "University of Dhaka"}, "role": "admin",
-        "redirect": "/portal/du/members",
+        "redirect": "/admin/portal/du/members", "renewal_stopped": False,
     }
     assert Membership.objects.get(user=user, organization=org).role == Membership.Role.ADMIN
     assert signed_in(user).get("/api/v1/portal/institutions/du/").status_code == 200
@@ -178,5 +178,5 @@ def test_an_invitation_never_demotes_an_active_member(org):
     add_member(org, user, role=Membership.Role.ADMIN)
     _, token = make_invitation(org, "z@du.ac.bd", role=Membership.Role.MEMBER)
     r = accept(signed_in(user), token)
-    assert r.json()["role"] == "admin" and r.json()["redirect"] == "/portal/du/members"
+    assert r.json()["role"] == "admin" and r.json()["redirect"] == "/admin/portal/du/members"
     assert Membership.objects.get(user=user, organization=org).role == Membership.Role.ADMIN

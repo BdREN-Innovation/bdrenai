@@ -156,6 +156,22 @@ describe("BdREN AI website", () => {
     expect(items[1]).toHaveAttribute("href", "/admin/");
   });
 
+  it("links each institution the user administers to Members in the admin console", async () => {
+    mockSignedInApi((url) =>
+      url.endsWith("/api/v1/portal/institutions/")
+        ? new Response(
+            JSON.stringify([{ slug: "du", name: "University of Dhaka", status: "active", seats: { used: 1, cap: 5 }, role: "admin" }]),
+            { status: 200 }
+          )
+        : undefined
+    );
+    render(<Header />);
+    fireEvent.click(await screen.findByRole("button", { name: "Profile menu for Alice Rahman" }));
+    const link = await screen.findByRole("menuitem", { name: /Manage members/ });
+    expect(link).toHaveAttribute("href", "/admin/portal/du/members");
+    expect(link).toHaveTextContent("University of Dhaka");
+  });
+
   it("leads with the Suite and switches to single-product packages", () => {
     render(<Pricing />);
     expect(screen.getByRole("button", { name: /BdREN AI Suite/ })).toHaveAttribute("aria-pressed", "true");

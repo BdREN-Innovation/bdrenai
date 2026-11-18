@@ -14,6 +14,7 @@ from rest_framework.views import APIView
 
 from apps.accounts.services import resolve_authorized_account
 from apps.audit.services import client_ip
+from apps.organizations.services import confirm_signup_institution
 
 from . import oidc, profile, signup, zitadel
 from .models import ExternalIdentity, User
@@ -265,6 +266,9 @@ class RegisterVerifyView(_Public):
                 return JsonResponse({"error": "invalid", "fields": {"code": "That code is wrong or has expired."}}, status=400)
             return JsonResponse({"error": "verify_failed"}, status=502)
         User.objects.filter(id=flow["user"]).update(email_verified=True)
+        user = User.objects.filter(id=flow["user"]).first()
+        if user is not None:
+            confirm_signup_institution(user, ip_address=client_ip(request))
         request.session.pop(SESSION_SIGNUP_KEY, None)
         return JsonResponse({"status": "verified", "email": flow["email"]})
 

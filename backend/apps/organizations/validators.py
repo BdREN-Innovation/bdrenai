@@ -58,6 +58,11 @@ def email_domain(email):
     return email.rsplit("@", 1)[-1].lower()
 
 
-def email_domain_allowed(organization, email):
-    domains = organization.sign_in_domains or []
-    return not domains or email_domain(email) in domains
+def domain_matches(domain, domains):
+    """`cse.du.ac.bd` matches `du.ac.bd` (exact or a subdomain); an empty list matches nothing."""
+    return any(domain == d or domain.endswith("." + d) for d in domains or [])
+
+
+def email_domain_matches(organization, email):
+    """Whether `email` is on one of the institution's sign-in domains, which confirms a sign-up's institution."""
+    return bool(email) and domain_matches(email_domain(email), organization.sign_in_domains)

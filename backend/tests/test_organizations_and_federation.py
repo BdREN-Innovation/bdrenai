@@ -2,12 +2,14 @@ import json
 from urllib.parse import parse_qs, urlparse
 
 import pytest
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 from django.test import Client
 
 from apps.accounts.models import Account
 from apps.audit.models import AuditLog
 from apps.identities.models import ExternalIdentity, User
+from apps.invitations.errors import ServiceError
+from apps.invitations.services import seats_used
 from apps.organizations.models import InstitutionalIdentityProvider, Membership, Organization
 from apps.organizations.services import (
     add_or_update_membership,
@@ -27,7 +29,7 @@ def login_with_claims(client, idp, **claim_overrides):
     return client.get("/api/v1/auth/callback/", {"code": "c", "state": state})
 
 
-def test_user_multi_org_roles_and_context_switching(idp):
+def test_one_institution_per_user_and_context_switching(idp):
     c = Client()
     assert login_with_claims(c, idp, sub="u-ctx").status_code == 302
     user = User.objects.get(zitadel_subject="u-ctx")
@@ -37,16 +39,18 @@ def test_user_multi_org_roles_and_context_switching(idp):
     org_unjoined = create_organization(name="Other Org", slug="other-org")
 
     add_or_update_membership(user=user, organization=org_a, role=Membership.Role.ADMIN)
-    add_or_update_membership(user=user, organization=org_b, role=Membership.Role.MEMBER)
+    with pytest.raises(ServiceError) as e:
+        add_or_update_membership(user=user, organization=org_b, role=Membership.Role.MEMBER)
+    assert e.value.code == "member_of_other_institution"
+    with pytest.raises(IntegrityError), transaction.atomic():
+        Membership.objects.create(user=user, organization=org_b)
 
-    # List available contexts (personal + Univ A + Org B)
+    # Personal + University A
     ctx_res = c.get("/api/v1/accounts/contexts/").json()
-    assert len(ctx_res["contexts"]) == 3
+    assert len(ctx_res["contexts"]) == 2
     by_slug = {x["organization"]["slug"]: x for x in ctx_res["contexts"] if x["organization"]}
     assert by_slug["univ-a"]["role"] == "admin"
-    assert by_slug["org-b"]["role"] == "member"
 
-    # Switch to University A organization account context
     sw = c.post(
         "/api/v1/accounts/switch-context/",
         data=json.dumps({"account_id": str(org_a.account.id)}),
@@ -56,7 +60,11 @@ def test_user_multi_org_roles_and_context_switching(idp):
     me = c.get("/api/v1/auth/me/").json()
     assert me["active_account_id"] == str(org_a.account.id)
 
-    # Cannot switch to an organization account the user does not belong to
+    # No longer covered: the institution account is no longer theirs, and the session falls back to personal
+    Membership.objects.filter(user=user).update(coverage=Membership.Coverage.NONE)
+    me = c.get("/api/v1/auth/me/").json()
+    assert me["active_account_id"] == str(Account.objects.get(owner_user=user, account_type="personal").id)
+
     forb = c.post(
         "/api/v1/accounts/switch-context/",
         data=json.dumps({"account_id": str(org_unjoined.account.id)}),
@@ -164,23 +172,42 @@ def test_explicit_verified_account_linking_and_conflict_rejection(idp):
     assert conflict.status_code == 409
 
 
-def test_institutional_sign_in_respects_the_seat_cap(idp):
-    """Signing in through the institution's IdP adds a seat, so it is seat-checked under the org lock."""
+def test_institutional_sign_in_affiliates_without_covering(idp):
+    """Signing in through the institution's IdP proves affiliation only: active, not covered, no seat used."""
     org = create_organization(name="BUET", slug="buet", zitadel_organization_id="z-buet-101", seat_cap=1)
     sso = {"urn:zitadel:iam:org:id": "z-buet-101"}
-    assert login_with_claims(Client(), idp, sub="u-1", email="one@buet.ac.bd", **sso).status_code == 302
-    first = User.objects.get(zitadel_subject="u-1")
-    assert Membership.objects.get(user=first).status == Membership.Status.ACTIVE
-
-    assert login_with_claims(Client(), idp, sub="u-2", email="two@buet.ac.bd", **sso).status_code == 302
-    second = Membership.objects.get(user__zitadel_subject="u-2")
-    assert second.status == Membership.Status.PENDING  # waits as a sign-up request instead of taking an 11th seat
-
-    org.seat_cap = 2
-    org.save(update_fields=["seat_cap"])
-    assert login_with_claims(Client(), idp, sub="u-2", email="two@buet.ac.bd", **sso).status_code == 302
-    second.refresh_from_db()
-    assert second.status == Membership.Status.ACTIVE
-    assert Membership.objects.filter(organization=org, status=Membership.Status.ACTIVE).count() == 2
+    for sub, email in (("u-1", "one@buet.ac.bd"), ("u-2", "two@buet.ac.bd")):
+        assert login_with_claims(Client(), idp, sub=sub, email=email, **sso).status_code == 302
+    memberships = Membership.objects.filter(organization=org)
+    assert {(m.status, m.coverage) for m in memberships} == {(Membership.Status.ACTIVE, Membership.Coverage.NONE)}
+    assert memberships.count() == 2
     joined = AuditLog.objects.filter(action="membership.joined", metadata__source="institution_sign_in")
     assert joined.count() == 2
+    assert seats_used(org) == 0
+
+
+def test_institutional_sign_in_of_someone_in_another_institution_does_not_join(idp):
+    other = create_organization(name="DU", slug="du-x")
+    org = create_organization(name="BUET", slug="buet-x", zitadel_organization_id="z-buet-x")
+    c = Client()
+    assert login_with_claims(c, idp, sub="u-x", email="x@du.ac.bd").status_code == 302
+    user = User.objects.get(zitadel_subject="u-x")
+    add_or_update_membership(user=user, organization=other)
+    sso = {"urn:zitadel:iam:org:id": "z-buet-x"}
+    assert login_with_claims(Client(), idp, sub="u-x", email="x@du.ac.bd", **sso).status_code == 302
+    assert not Membership.objects.filter(user=user, organization=org).exists()
+
+
+def test_institutional_sign_in_never_makes_an_admin_who_is_not_covered(idp):
+    org = create_organization(name="BUET", slug="buet", zitadel_organization_id="z-buet-101")
+    register_institutional_idp(
+        organization=org, name="BUET SAML", protocol=InstitutionalIdentityProvider.Protocol.SAML,
+        zitadel_idp_id="idp-buet-saml", issuer_or_entity_id="https://idp.buet.ac.bd/idp/shibboleth",
+        auto_join_role=Membership.Role.ADMIN,
+    )
+    c = Client()
+    claims = {"urn:zitadel:iam:org:id": "z-buet-101", "urn:zitadel:iam:user:idp:id": "idp-buet-saml"}
+    assert login_with_claims(c, idp, sub="u-buet-a", email="a@buet.ac.bd", **claims).status_code == 302
+    m = Membership.objects.get(user__zitadel_subject="u-buet-a", organization=org)
+    assert (m.role, m.coverage) == (Membership.Role.MEMBER, Membership.Coverage.NONE)
+    assert c.get("/api/v1/portal/institutions/").json() == []

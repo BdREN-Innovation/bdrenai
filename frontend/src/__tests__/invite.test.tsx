@@ -20,6 +20,8 @@ const INVITE: InvitationPreview = {
   expires_at: "2026-11-25T07:00:00Z",
   signed_in: false,
   email_matches: false,
+  ends_personal_plan: false,
+  personal_plan_ends_at: null,
 };
 
 function serve(invite: Partial<InvitationPreview>, accept?: () => Response) {
@@ -56,19 +58,64 @@ describe("Invitation page", () => {
     );
   });
 
-  it("accepts for the matching signed-in user and links on to the Members page", async () => {
+  it("accepts for the matching signed-in user and links on to Members in the admin console", async () => {
     const calls = serve({ signed_in: true, email_matches: true, email: "rahim@du.ac.bd" }, () =>
-      json({ institution: { slug: "du", name: "University of Dhaka" }, role: "admin", redirect: "/portal/du/members" })
+      json({ institution: { slug: "du", name: "University of Dhaka" }, role: "admin", redirect: "/admin/portal/du/members" })
     );
     render(<Invite token={TOKEN} />);
     expect(await screen.findByText("rahim@du.ac.bd")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Accept invitation" }));
 
     expect(await screen.findByRole("heading", { name: "You've joined University of Dhaka" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Continue" })).toHaveAttribute("href", "/portal/du/members");
+    expect(screen.getByRole("link", { name: "Continue" })).toHaveAttribute("href", "/admin/portal/du/members");
     const accept = calls.find((c) => c.url.endsWith("/accept/"));
     expect(accept?.method).toBe("POST");
     expect(calls.some((c) => c.url === "/api/v1/csrf/")).toBe(true);
+  });
+
+  it("asks a personal-plan user to agree that their plan stops renewing before accepting", async () => {
+    const calls = serve(
+      {
+        signed_in: true,
+        email_matches: true,
+        email: "rahim@du.ac.bd",
+        ends_personal_plan: true,
+        personal_plan_ends_at: "2026-12-10T00:00:00Z",
+      },
+      () =>
+        json({
+          institution: { slug: "du", name: "University of Dhaka" },
+          role: "member",
+          redirect: "/profile",
+          renewal_stopped: true,
+        })
+    );
+    render(<Invite token={TOKEN} />);
+    expect(await screen.findByRole("heading", { name: "Your personal plan will stop renewing" })).toBeInTheDocument();
+    expect(screen.getByText(/It keeps working until 10 Dec 2026, then ends/)).toBeInTheDocument();
+    expect(screen.getByText(/won't get a refund/)).toBeInTheDocument();
+    const accept = screen.getByRole("button", { name: "Accept and stop my plan renewing" });
+    expect(accept).toBeDisabled();
+    fireEvent.click(accept);
+    expect(calls.some((c) => c.url.endsWith("/accept/"))).toBe(false);
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "I understand that my personal plan won't renew." }));
+    expect(accept).toBeEnabled();
+    fireEvent.click(accept);
+    expect(await screen.findByRole("heading", { name: "You've joined University of Dhaka" })).toBeInTheDocument();
+    expect(screen.getByText(/Your personal plan won't renew/)).toBeInTheDocument();
+    expect(calls.find((c) => c.url.endsWith("/accept/"))?.body).toEqual({ end_personal_plan: true });
+  });
+
+  it("does not mention a personal plan to someone without one", async () => {
+    const calls = serve({ signed_in: true, email_matches: true }, () =>
+      json({ institution: { slug: "du", name: "University of Dhaka" }, role: "member", redirect: "/profile", renewal_stopped: false })
+    );
+    render(<Invite token={TOKEN} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Accept invitation" }));
+    expect(await screen.findByRole("heading", { name: "You've joined University of Dhaka" })).toBeInTheDocument();
+    expect(screen.queryByText(/personal plan/)).not.toBeInTheDocument();
+    expect(calls.find((c) => c.url.endsWith("/accept/"))?.body).toEqual({});
   });
 
   it("keeps the redirect on this site", async () => {

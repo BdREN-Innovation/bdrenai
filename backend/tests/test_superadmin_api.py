@@ -192,7 +192,7 @@ def test_institution_list_shape_filters_and_pagination(client, org):
     du = body["results"][1]
     assert du == {
         "id": str(org.id), "slug": "du", "name": "University of Dhaka", "type": "other", "sector": "", "status": "active",
-        "seats": {"used": 2, "cap": 10},
+        "seats": {"used": 3, "cap": 10},  # owner, the suspended member (keeps a seat), the live invitation
         "admins": [{"id": str(owner.user.id), "name": "Person", "email": "owner@du.ac.bd"}],
         "members_count": 2, "pending_invitations": 1, "pending_requests": 1, "created_at": du["created_at"],
     }
@@ -273,9 +273,14 @@ def test_create_institution_without_admin_and_its_errors(client, org):
     r = post(client, "institutions/", {"name": "Options", "slug": "options"})
     assert error(r) == (400, "invalid") and "slug" in r.json()["fields"]
     r = post(client, "institutions/", {"name": "Strict", "slug": "strict", "sign_in_domains": ["strict.edu"],
-                                       "admin": {"email": "a@gmail.com"}})
-    assert error(r) == (400, "domain_not_allowed") and "admin.email" in r.json()["fields"]
+                                       "admin": {"email": "not-an-email"}})
+    assert error(r) == (400, "invalid") and "admin.email" in r.json()["fields"]
     assert not Organization.objects.filter(slug="strict").exists()
+    assert post(client, "institutions/", {"name": "Open", "slug": "open", "sign_in_domains": ["open.edu"],
+                                          "admin": {"email": "a@gmail.com"}}).status_code == 201
+    r = post(client, "institutions/", {"name": "Copy", "slug": "copy", "sign_in_domains": ["Open.edu"]})
+    assert error(r) == (409, "domain_taken") and "sign_in_domains" in r.json()["fields"]
+    assert r.json()["conflicts"] == [{"domain": "open.edu", "institution": {"slug": "open", "name": "Open"}}]
     assert error(client.post(API + "institutions/", "[1]", content_type="application/json")) == (400, "invalid")
     assert error(client.post(API + "institutions/", "{bad", content_type="application/json")) == (400, "invalid")
 
@@ -289,8 +294,8 @@ def test_institution_detail(client, org):
 
     body = get(client, "institutions/du/").json()
     assert body["counts"] == {"members": 3, "active": 2, "suspended": 1, "pending_invitations": 1,
-                              "expired_invitations": 1, "pending_requests": 0}
-    assert body["seats"] == {"used": 3, "cap": 10}
+                              "expired_invitations": 1, "pending_requests": 0, "not_covered": 0, "personal_plan": 0}
+    assert body["seats"] == {"used": 4, "cap": 10}
     assert [a["membership_id"] for a in body["admins"]] == [str(admin.id), str(owner.id)]
     assert body["admins"][1] == {"membership_id": str(owner.id), "user_id": str(owner.user.id), "name": "Person",
                                  "email": "owner@du.ac.bd", "role": "owner"}
@@ -361,7 +366,7 @@ def test_members_list(client, org):
     row = next(r for r in body["results"] if r["membership_id"] == str(a.id))
     assert row == {"membership_id": str(a.id), "user": {"id": str(a.user.id), "name": "Person",
                    "email": "rahim@du.ac.bd", "status": "active"}, "role": "admin", "status": "active",
-                   "joined_at": row["joined_at"]}
+                   "coverage": "institution", "label": "covered", "joined_at": row["joined_at"]}
     removed = get(client, "institutions/du/members/", status="deprovisioned").json()["results"]
     ids = [r["membership_id"] for r in removed]
     assert ids == [str(gone.id)]
@@ -422,6 +427,9 @@ def test_membership_patch(client, org, boss):
     entry = last_audit("membership.updated")
     assert entry.metadata["forced"] is True and entry.metadata["reason"] == "Left" and entry.actor == boss
 
+    assert error(patch(client, f"memberships/{pending.id}/", {"status": "active"})) == (409, "seat_cap_reached")
+    org.seat_cap = 2  # the suspended admin keeps their seat
+    org.save()
     r = patch(client, f"memberships/{pending.id}/", {"status": "active", "role": "billing"})
     assert r.status_code == 200 and (r.json()["status"], r.json()["role"]) == ("active", "billing")
     assert error(patch(client, f"memberships/{pending.id}/", {"role": "king"})) == (400, "bad_role")
@@ -459,7 +467,7 @@ def test_users_list_filters(client, org, boss):
         "status": "active", "created_at": row["created_at"], "last_login_at": None,
         "memberships": [{"membership_id": row["memberships"][0]["membership_id"],
                          "institution": {"slug": "du", "name": "University of Dhaka"}, "role": "admin",
-                         "status": "active"}],
+                         "status": "active", "coverage": "institution", "label": "covered"}],
         "is_superadmin": False,
     }
     assert next(r for r in body["results"] if r["id"] == str(boss.id))["is_superadmin"] is True
@@ -605,9 +613,11 @@ def test_invite_with_a_new_institution(client):
     assert r.json()["invitation"]["institution"] == {"slug": "new-college", "name": "New College"}
 
     other_college = {**body["new_institution"], "slug": "other-college"}
-    bad_email = {**body, "new_institution": other_college, "email": "x@gmail.com"}
-    r = post(client, "invitations/", bad_email)
-    assert error(r) == (400, "domain_not_allowed") and "email" in r.json()["fields"]
+    r = post(client, "invitations/", {**body, "new_institution": other_college, "email": "x@gmail.com"})
+    assert error(r) == (409, "domain_taken") and "new_institution.sign_in_domains" in r.json()["fields"]
+    other_college["sign_in_domains"] = ["other.edu"]
+    r = post(client, "invitations/", {**body, "new_institution": other_college, "email": "not-an-email"})
+    assert error(r) == (400, "invalid") and "email" in r.json()["fields"]
     assert not Organization.objects.filter(slug="other-college").exists()
     r = post(client, "invitations/", {**body, "new_institution": {"name": "Y", "slug": "Bad Slug"}})
     assert error(r) == (400, "invalid")

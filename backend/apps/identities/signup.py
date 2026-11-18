@@ -1,4 +1,8 @@
-"""Website sign-up: validate the form, create the ZITADEL user, mirror it locally, record the institution request."""
+"""Website sign-up: validate the form, create the ZITADEL user, mirror it locally, record the institution request.
+
+The chosen institution is only a request until the email is verified; it is then confirmed when the email is on
+one of the institution's sign-in domains, else dropped (`apps.organizations.services.confirm_signup_institution`).
+"""
 import re
 import uuid
 
@@ -6,7 +10,8 @@ from django.conf import settings
 from django.db import transaction
 
 from apps.audit.services import record_audit
-from apps.organizations.models import Membership, Organization
+from apps.organizations.models import Organization
+from apps.organizations.services import request_institution
 
 from . import zitadel
 from .services import provision_user
@@ -100,9 +105,7 @@ def register(data, ip_address=None):
     with transaction.atomic():
         user = provision_user(claims)
         if f["org"] is not None:
-            Membership.objects.get_or_create(
-                user=user, organization=f["org"], defaults={"status": Membership.Status.PENDING}
-            )
+            request_institution(user, f["org"], ip_address=ip_address)
         meta = {"organization_id": str(f["org"].id)} if f["org"] else {"institution_other": f["other"] or None}
         record_audit(
             actor=user, action="user.signed_up", target_type="user", target_id=str(user.id),

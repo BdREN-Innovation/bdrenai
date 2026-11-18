@@ -9,6 +9,7 @@ import {
   ROLE_LABELS,
   errorMessage,
   formatDate,
+  siteUrl,
 } from "@/lib/portal";
 
 type View =
@@ -58,6 +59,38 @@ function headline(invite: InvitationPreview): string {
   return invite.institution ? `Join ${invite.institution.name} on BdREN AI` : "Join BdREN AI";
 }
 
+function planEnd(invite: InvitationPreview): string {
+  return invite.personal_plan_ends_at ? `until ${formatDate(invite.personal_plan_ends_at)}` : "until its current period ends";
+}
+
+function PersonalPlanConsent({ invite, agreed, onChange }: {
+  invite: InvitationPreview;
+  agreed: boolean;
+  onChange: (agreed: boolean) => void;
+}) {
+  return (
+    <div role="note" aria-labelledby="plan-title" className="mt-6 rounded-xl border border-brand bg-brand-tint p-4">
+      <h2 id="plan-title" className="font-semibold text-ink">
+        Your personal plan will stop renewing
+      </h2>
+      <p className="mt-2 leading-relaxed text-ink">
+        You pay for your own BdREN AI plan. If you join {invite.institution?.name || "this institution"}&apos;s package,
+        your plan won&apos;t renew. It keeps working {planEnd(invite)}, then ends. You won&apos;t get a refund for the time
+        left.
+      </p>
+      <label className="mt-4 flex cursor-pointer items-start gap-3 text-[15px] leading-normal text-ink">
+        <input
+          type="checkbox"
+          checked={agreed}
+          onChange={(e) => onChange(e.target.checked)}
+          className="mt-0.5 h-5 w-5 flex-none accent-brand"
+        />
+        <span>I understand that my personal plan won&apos;t renew.</span>
+      </label>
+    </div>
+  );
+}
+
 function Pending({ token, invite, onJoined, onStale }: {
   token: string;
   invite: InvitationPreview;
@@ -66,15 +99,19 @@ function Pending({ token, invite, onJoined, onStale }: {
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [agreed, setAgreed] = useState(false);
   const here = `/invite/${token}`;
+  const consent = invite.ends_personal_plan;
 
   async function accept() {
     setBusy(true);
     setError(null);
-    const res = await postForm<AcceptResult>(`${INVITATION_PATH}${encodeURIComponent(token)}/accept/`, {});
+    const body = consent ? { end_personal_plan: agreed } : {};
+    const res = await postForm<AcceptResult>(`${INVITATION_PATH}${encodeURIComponent(token)}/accept/`, body);
     setBusy(false);
     if (res.ok) return onJoined(res.data);
-    if (res.data.error === "invitation_not_pending" || res.status === 404) return onStale();
+    const stale = res.data.error === "invitation_not_pending" || res.data.error === "personal_plan_consent_required";
+    if (stale || res.status === 404) return onStale();
     setError(ACCEPT_ERRORS[res.data.error || ""] || errorMessage(res, "We couldn't accept the invitation. Try again in a moment."));
   }
 
@@ -118,13 +155,14 @@ function Pending({ token, invite, onJoined, onStale }: {
     <Panel title={headline(invite)}>
       <p className="mt-3 leading-relaxed text-muted">You&apos;re signed in with the email this invitation was sent to.</p>
       <Details invite={invite} />
+      {consent && <PersonalPlanConsent invite={invite} agreed={agreed} onChange={setAgreed} />}
       {error && (
         <p role="alert" className="mt-5 text-brand-strong">
           {error}
         </p>
       )}
-      <button type="button" onClick={accept} disabled={busy} className="btn-primary mt-7 disabled:cursor-not-allowed disabled:bg-line disabled:text-muted">
-        {busy ? "Accepting…" : "Accept invitation"}
+      <button type="button" onClick={accept} disabled={busy || (consent && !agreed)} className="btn-primary mt-7 disabled:cursor-not-allowed disabled:bg-line disabled:text-muted">
+        {busy ? "Accepting…" : consent ? "Accept and stop my plan renewing" : "Accept invitation"}
       </button>
     </Panel>
   );
@@ -203,7 +241,12 @@ export function Invite({ token }: { token: string }) {
             ? `You're now part of ${result.institution.name} as ${(result.role && ROLE_LABELS[result.role]) || "a member"}.`
             : "Your invitation is accepted."}
         </p>
-        <a href={safeNext(result.redirect)} className="btn-primary mt-7">
+        {result.renewal_stopped && (
+          <p className="mt-3 leading-relaxed text-muted">
+            Your personal plan won&apos;t renew. It keeps working until its current period ends.
+          </p>
+        )}
+        <a href={siteUrl(safeNext(result.redirect))} className="btn-primary mt-7">
           Continue
         </a>
       </Panel>

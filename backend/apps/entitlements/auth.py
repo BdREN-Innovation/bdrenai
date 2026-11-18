@@ -8,19 +8,23 @@ from django.core.exceptions import PermissionDenied
 
 from apps.accounts.models import Account
 from apps.accounts.services import resolve_authorized_account
+from apps.entitlements.services import covered_organization_account
 from apps.identities.models import User
 from apps.products.models import Product, hash_api_key
 
 
 def resolve_caller_and_product(request, product_slug: str = None):
-    """Returns (user, org_account, product).
+    """Returns (user, org_account, product). `org_account` is the account of the institution covering the user
+    (found automatically, so apps need not send it), or None; an explicit `organization_account_id` must be one the
+    user may use (403 otherwise).
     - If `X-Product-Api-Key` header is present: authenticates the server-to-server Product,
       enforces that `product_slug` (if given) matches that Product, and resolves the target `User`
       by validated `(issuer, zitadel_subject)` or `user_id`.
     - Otherwise requires an authenticated Django session (`request.user`).
     """
     raw_key = request.headers.get("X-Product-Api-Key", "").strip()
-    data = request.data if hasattr(request, "data") and isinstance(request.data, dict) else request.GET
+    has_body = request.method != "GET" and hasattr(request, "data") and isinstance(request.data, dict)
+    data = request.data if has_body else request.GET
 
     if raw_key:
         key_hash = hash_api_key(raw_key)
@@ -50,12 +54,10 @@ def resolve_caller_and_product(request, product_slug: str = None):
         if slug and product is None:
             raise PermissionDenied("Requested product not found or inactive")
 
-    org_acct = None
-    org_account_id = data.get("organization_account_id") or (
-        request.session.get("active_account_id") if hasattr(request, "session") else None
-    )
-    if org_account_id:
-        acct = resolve_authorized_account(user, account_id=org_account_id)
+    org_acct = covered_organization_account(user)
+    requested = data.get("organization_account_id")
+    if requested:
+        acct = resolve_authorized_account(user, account_id=requested)
         if acct.account_type == Account.Type.ORGANIZATION:
             org_acct = acct
 

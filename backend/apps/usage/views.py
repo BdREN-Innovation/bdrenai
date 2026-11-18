@@ -58,6 +58,8 @@ class UsageReservationCreateView(APIView):
             )
         except QuotaExceededError as e:
             return JsonResponse({"allowed": False, "error": "quota_exceeded", "detail": str(e)}, status=429)
+        except ReservationStateError as e:
+            return JsonResponse({"error": "idempotency_key_conflict", "detail": str(e)}, status=409)
         except PermissionError as e:
             return JsonResponse({"error": "forbidden", "detail": str(e)}, status=403)
 

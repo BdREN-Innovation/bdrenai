@@ -3,7 +3,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.audit.services import record_audit
-from apps.subscriptions.services import create_subscription, renew_subscription
+from apps.subscriptions.services import create_subscription, renew_subscription, resume_renewal
 
 from .models import PaymentRecord
 
@@ -32,6 +32,10 @@ def verify_manual_payment(*, payment: PaymentRecord, verifier_user, approve: boo
         pmt.notes = notes
     if approve:
         if pmt.subscription_id:
+            resume_renewal(
+                subscription=pmt.subscription, actor=verifier_user,
+                notes=f"Paid again ({pmt.reference}); renews again", metadata={"payment_id": str(pmt.id)},
+            )
             renew_subscription(subscription=pmt.subscription, actor=verifier_user, notes=f"Verified payment {pmt.reference}")
         elif activate_package_version is not None:
             sub = create_subscription(

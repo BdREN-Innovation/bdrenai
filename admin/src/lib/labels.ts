@@ -1,10 +1,13 @@
 import type {
   AppStatus,
   BillingInterval,
+  Coverage,
   FeatureStatus,
+  ImportAction,
   InstitutionSector,
   InstitutionType,
   LimitPeriod,
+  MemberLabel,
   MigrationPolicy,
   OnLimit,
   PackageKind,
@@ -52,8 +55,30 @@ export const IMPORT_REASON_LABEL: Record<string, string> = {
   already_invited: 'Already invited',
   bad_role: 'Unknown role',
   over_cap: 'Over the seat cap',
-  domain_not_allowed: 'Domain not allowed',
+  member_of_other_institution: 'Belongs to another institution',
 };
+
+export const IMPORT_ACTION_LABEL: Record<ImportAction, string> = {
+  invite: 'Invite',
+  cover: 'Add to package now',
+  consent_invite: 'Invite (has a personal plan)',
+};
+
+export const COVERAGE_LABEL: Record<Coverage, string> = {
+  institution: 'Covered',
+  none: 'Not covered',
+};
+
+export const MEMBER_LABELS: { value: MemberLabel; label: string }[] = [
+  { value: 'covered', label: 'Covered' },
+  { value: 'invited', label: 'Invited' },
+  { value: 'not_covered', label: 'Not covered' },
+  { value: 'personal_plan', label: 'Personal plan' },
+];
+
+export const MEMBER_LABEL: Record<MemberLabel, string> = Object.fromEntries(
+  MEMBER_LABELS.map((label) => [label.value, label.label]),
+) as Record<MemberLabel, string>;
 
 export const DEFAULT_TIMEZONE = 'Asia/Dhaka';
 

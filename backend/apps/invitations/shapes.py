@@ -45,14 +45,27 @@ def serialize_invitation(invitation, *, inviter_email=True):
     }
 
 
-def serialize_member(membership):
-    """The contract's `Member`. Select related `user` first."""
+def serialize_member(membership, label=None):
+    """The contract's `Member`. Select related `user` first; `label` comes from `services.membership_label`."""
     user = membership.user
     return {
         "membership_id": str(membership.id),
         "user": {"id": str(user.id), "name": user.name, "email": user.email, "status": user.status},
         "role": membership.role,
         "status": membership.status,
+        "coverage": membership.coverage,
+        "label": label,
+        "joined_at": iso(membership.created_at),
+    }
+
+
+def serialize_personal_plan_member(membership, label="personal_plan"):
+    """What an institution admin may see of a personal-plan member (R2): name, email, joined date, the label."""
+    user = membership.user
+    return {
+        "membership_id": str(membership.id),
+        "user": {"name": user.name, "email": user.email},
+        "label": label,
         "joined_at": iso(membership.created_at),
     }
 

@@ -1,8 +1,10 @@
-import { Ban, CircleCheck, CircleDashed, CircleX, Clock, MailCheck, TriangleAlert } from 'lucide-react';
+import { Ban, BadgeCheck, CircleCheck, CircleDashed, CircleX, Clock, Mail, MailCheck, TriangleAlert, UserRound } from 'lucide-react';
 import type { ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
+import type { MemberLabel } from '@/api/types';
 import { cn } from '@/lib/cn';
 import { humanize } from '@/lib/format';
+import { MEMBER_LABEL } from '@/lib/labels';
 
 export type Tone = 'success' | 'warning' | 'danger' | 'info' | 'neutral' | 'brand';
 
@@ -52,6 +54,23 @@ export function StatusChip({ status }: { status: string }) {
   return (
     <Chip tone={style.tone} icon={style.icon}>
       {STATUS_LABEL[status] ?? humanize(status)}
+    </Chip>
+  );
+}
+
+const COVERAGE: Record<MemberLabel, { tone: Tone; icon: LucideIcon }> = {
+  covered: { tone: 'success', icon: BadgeCheck },
+  invited: { tone: 'info', icon: Mail },
+  not_covered: { tone: 'neutral', icon: CircleDashed },
+  personal_plan: { tone: 'brand', icon: UserRound },
+};
+
+/** Whether the institution's package covers the member: Covered, Invited, Not covered or Personal plan. */
+export function CoverageChip({ label }: { label: MemberLabel }) {
+  const style = COVERAGE[label];
+  return (
+    <Chip tone={style.tone} icon={style.icon}>
+      {MEMBER_LABEL[label]}
     </Chip>
   );
 }

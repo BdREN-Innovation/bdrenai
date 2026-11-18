@@ -1,11 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Outlet } from '@tanstack/react-router';
-import { ApiError } from '@/api/client';
-import { useSession } from '@/api/queries';
+import { Navigate, Outlet, useRouterState } from '@tanstack/react-router';
+import type { ReactNode } from 'react';
+import { useAccess } from '@/features/portal/access';
 import { CommandMenuContext } from './Page';
-import { AccessDenied } from './AccessDenied';
 import { CommandMenu } from './CommandMenu';
-import { ErrorState, LoadingState } from '@/components/ui';
 import { Sidebar } from './Sidebar';
 
 const SIDEBAR_KEY = 'bdren-admin-sidebar';
@@ -58,28 +56,18 @@ function useCommandShortcut(open: () => void) {
   }, [open]);
 }
 
-/** Signed-in frame: only a platform superadmin gets past the session check. */
-export function Shell() {
-  const session = useSession();
+interface FrameProps {
+  sidebar: (state: { collapsed: boolean; onToggle: () => void }) => ReactNode;
+  commandMenu: (state: { open: boolean; onOpenChange: (open: boolean) => void }) => ReactNode;
+  children: ReactNode;
+}
+
+/** A console's frame: skip link, collapsible sidebar, the page, and the ⌘K command menu. */
+export function Frame({ sidebar, commandMenu, children }: FrameProps) {
   const { collapsed, toggle } = useSidebar();
   const [commandOpen, setCommandOpen] = useState(false);
   const openCommandMenu = useCallback(() => setCommandOpen(true), []);
   useCommandShortcut(openCommandMenu);
-
-  if (session.isPending) return <LoadingState label="Checking your session…" className="min-h-screen" />;
-
-  if (session.isError) {
-    const error = session.error;
-    if (error instanceof ApiError && error.status === 401) {
-      return <LoadingState label="Redirecting to sign in…" className="min-h-screen" />;
-    }
-    if (error instanceof ApiError && error.status === 403) return <AccessDenied />;
-    return (
-      <main className="mx-auto max-w-lg p-6">
-        <ErrorState error={error} onRetry={() => void session.refetch()} />
-      </main>
-    );
-  }
 
   return (
     <CommandMenuContext.Provider value={openCommandMenu}>
@@ -90,12 +78,32 @@ export function Shell() {
         Skip to content
       </a>
       <div className="flex h-screen min-w-0 bg-ground">
-        <Sidebar session={session.data} collapsed={collapsed} onToggle={toggle} />
-        <div className="flex min-w-0 flex-1 flex-col">
-          <Outlet />
-        </div>
+        {sidebar({ collapsed, onToggle: toggle })}
+        <div className="flex min-w-0 flex-1 flex-col">{children}</div>
       </div>
-      <CommandMenu open={commandOpen} onOpenChange={setCommandOpen} />
+      {commandMenu({ open: commandOpen, onOpenChange: setCommandOpen })}
     </CommandMenuContext.Provider>
+  );
+}
+
+const isPortalRoute = (routeId: string) => routeId === '/portal' || routeId.startsWith('/portal/');
+
+/**
+ * The platform console's frame. Only a superadmin session gets it; anyone else is sent to the institution console.
+ * `/portal/…` pages bring their own frame (PortalShell), so they pass straight through.
+ */
+export function Shell() {
+  const { session, institutions, institutionsError, retryInstitutions } = useAccess();
+  const portal = useRouterState({ select: (state) => state.matches.some((match) => isPortalRoute(match.routeId)) });
+  if (portal) return <Outlet />;
+  if (!session) return <Navigate to="/portal" replace />;
+
+  return (
+    <Frame
+      sidebar={(state) => <Sidebar session={session} institutions={institutions} onRetryInstitutions={institutionsError ? retryInstitutions : undefined} {...state} />}
+      commandMenu={(state) => <CommandMenu {...state} />}
+    >
+      <Outlet />
+    </Frame>
   );
 }

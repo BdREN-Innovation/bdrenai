@@ -1,4 +1,4 @@
-import { createRootRoute, createRoute, createRouter } from '@tanstack/react-router';
+import { createRootRoute, createRoute, createRouter, redirect } from '@tanstack/react-router';
 import type { RouterHistory } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
 import type { InvitationStatus } from '@/api/types';
@@ -18,8 +18,26 @@ import { UsersPage } from '@/pages/users';
 import { AuditPage } from '@/pages/audit';
 import { SoonPage } from '@/pages/soon';
 import { HelpPage } from '@/pages/help';
+import { AccessGate } from '@/features/portal/access';
+import { PortalShell } from '@/features/portal/shell';
+import { validateMembersSearch } from '@/features/portal/tabs';
+import { PortalDashboardPage } from '@/pages/portal/dashboard';
+import { PortalMembersPage } from '@/pages/portal/members';
+import { PortalDomainsPage } from '@/pages/portal/domains';
+import { PortalUsagePage } from '@/pages/portal/usage';
+import { PortalHelpPage } from '@/pages/portal/help';
+import { PortalHomePage } from '@/pages/portal';
 
-const rootRoute = createRootRoute({ component: Shell, notFoundComponent: NotFoundPage });
+/** Who is signed in decides the console: Shell frames the platform pages; `/portal/…` frames itself (PortalShell). */
+function Root() {
+  return (
+    <AccessGate>
+      <Shell />
+    </AccessGate>
+  );
+}
+
+const rootRoute = createRootRoute({ component: Root, notFoundComponent: NotFoundPage });
 
 const page = <TPath extends string>(path: TPath, component: () => ReactNode) =>
   createRoute({ getParentRoute: () => rootRoute, path, component });
@@ -56,6 +74,38 @@ const configurationRoute = createRoute({
   component: ConfigurationPage,
 });
 
+/** The institution console (`/portal/…`): institution admins, and superadmins who also administer an institution. */
+const portalHomeRoute = createRoute({ getParentRoute: () => rootRoute, path: '/portal', component: PortalHomePage });
+
+const portalRoute = createRoute({ getParentRoute: () => rootRoute, path: '/portal/$slug', component: PortalShell });
+
+const portalPage = <TPath extends string>(path: TPath, component: () => ReactNode) =>
+  createRoute({ getParentRoute: () => portalRoute, path, component });
+
+const portalIndexRoute = createRoute({
+  getParentRoute: () => portalRoute,
+  path: '/',
+  beforeLoad: ({ params }) => {
+    throw redirect({ to: '/portal/$slug/dashboard', params, replace: true });
+  },
+});
+
+const portalMembersRoute = createRoute({
+  getParentRoute: () => portalRoute,
+  path: '/members',
+  validateSearch: validateMembersSearch,
+  component: PortalMembersPage,
+});
+
+const portalTree = portalRoute.addChildren([
+  portalIndexRoute,
+  portalPage('/dashboard', PortalDashboardPage),
+  portalPage('/usage', PortalUsagePage),
+  portalMembersRoute,
+  portalPage('/domains', PortalDomainsPage),
+  portalPage('/help', PortalHelpPage),
+]);
+
 const routeTree = rootRoute.addChildren([
   page('/', DashboardPage),
   page('/institutions', InstitutionsPage),
@@ -70,6 +120,8 @@ const routeTree = rootRoute.addChildren([
   page('/subscriptions', () => <SoonPage area="subscriptions" />),
   configurationRoute,
   page('/configuration/packages/$id', PackageDetailPage),
+  portalHomeRoute,
+  portalTree,
 ]);
 
 export function createAppRouter(history?: RouterHistory) {

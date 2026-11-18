@@ -192,18 +192,18 @@ def test_deactivated_institution_is_403_and_not_listed(org, client):
 # ---------------------------------------------------------------- reads
 
 def test_institutions_lists_only_those_you_administer(org, other, admin):
-    add_member(other, admin.user, role=Membership.Role.MEMBER)
-    third = make_org("ru", name="Rajshahi University")
-    add_member(third, admin.user, role=Membership.Role.OWNER)
-    third.status = Organization.Status.SUSPENDED
-    third.save()
     make_invitation(org, "live@du.ac.bd")
-
     assert call(signed_in(admin.user), "get", "").json() == [
-        {"slug": "ru", "name": "Rajshahi University", "status": "suspended",
-         "seats": {"used": 1, "cap": None}, "role": "owner"},
         {"slug": "du", "name": "University of Dhaka", "status": "active",
          "seats": {"used": 3, "cap": 10}, "role": "admin"},
+    ]
+    third = make_org("ru", name="Rajshahi University")
+    head = add_member(third, make_user("head@ru.ac.bd"), role=Membership.Role.OWNER)
+    third.status = Organization.Status.SUSPENDED
+    third.save()
+    assert call(signed_in(head.user), "get", "").json() == [
+        {"slug": "ru", "name": "Rajshahi University", "status": "suspended",
+         "seats": {"used": 1, "cap": None}, "role": "owner"},
     ]
 
 
@@ -218,9 +218,9 @@ def test_institution_summary_has_seats_counts_and_domains(org, client, member):
     make_invitation(org, "gone@du.ac.bd", status=Invitation.Status.REVOKED)
 
     assert call(client, "get", "du/").json() == {
-        "slug": "du", "name": "University of Dhaka", "seats": {"used": 4, "cap": 10},
+        "slug": "du", "name": "University of Dhaka", "seats": {"used": 5, "cap": 10},  # suspended keeps a seat
         "counts": {"members": 4, "active": 3, "suspended": 1, "pending_invitations": 1,
-                   "expired_invitations": 1, "pending_requests": 1},
+                   "expired_invitations": 1, "pending_requests": 1, "not_covered": 0, "personal_plan": 0},
         "sign_in_domains": ["du.ac.bd"],
     }
 
@@ -236,12 +236,13 @@ def test_members_list_filters_searches_and_pages(org, client, admin, member):
     assert row["user"] == {"id": str(member.user.id), "name": "Member", "email": "member@du.ac.bd",
                            "status": "active"}
     assert row["role"] == "member" and row["status"] == "active" and row["joined_at"].endswith("Z")
+    assert row["coverage"] == "institution" and row["label"] == "covered"
 
     def emails(**query):
         return [r["user"]["email"] for r in call(client, "get", "du/members/", **query).json()["results"]]
 
     assert emails(status="suspended") == ["susp@du.ac.bd"]
-    assert len(emails(status="deprovisioned")) == 1
+    assert error(call(client, "get", "du/members/", status="deprovisioned")) == (400, "invalid")
     assert sorted(emails(role="admin")) == ["admin@du.ac.bd"]
     assert emails(q="MEMBER@du") == ["member@du.ac.bd"]
     assert emails(q="suspended one") == ["susp@du.ac.bd"]
@@ -317,7 +318,7 @@ def test_invite_4xx_paths(org, client, member):
     assert error(call(client, "post", "du/invitations/", {"email": "a@du.ac.bd"})) == (409, "already_invited")
     org.sign_in_domains = ["du.ac.bd"]
     org.save()
-    assert error(call(client, "post", "du/invitations/", {"email": "x@gmail.com"})) == (400, "domain_not_allowed")
+    assert call(client, "post", "du/invitations/", {"email": "x@gmail.com"}).status_code == 201
 
 
 def test_invite_is_seat_checked(org, client):
@@ -415,16 +416,15 @@ def test_promote_suspend_and_reactivate_a_member(org, client, member):
     assert entries[1].metadata["reason"] == "left"
 
 
-def test_approving_a_sign_up_request_and_reactivating_are_seat_checked(org, client):
+def test_sign_up_requests_are_hidden_and_reactivating_needs_no_new_seat(org, client):
     request = add_member(org, status=Membership.Status.PENDING)
     suspended = add_member(org, status=Membership.Status.SUSPENDED)
     org.seat_cap = 3
     org.save()
-    assert call(client, "patch", f"du/members/{request.id}/", {"status": "active"}).status_code == 200
+    assert error(call(client, "patch", f"du/members/{request.id}/", {"status": "active"})) == (404, "not_found")
+    assert request.id not in {r["membership_id"] for r in call(client, "get", "du/members/").json()["results"]}
     r = call(client, "patch", f"du/members/{suspended.id}/", {"status": "active"})
-    assert error(r) == (409, "seat_cap_reached") and r.json()["seat_cap"] == 3
-    suspended.refresh_from_db()
-    assert suspended.status == Membership.Status.SUSPENDED
+    assert r.status_code == 200 and r.json()["status"] == "active"
 
 
 def test_member_changes_4xx_paths(org, client, admin, owner, member):
@@ -444,12 +444,13 @@ def test_member_changes_4xx_paths(org, client, admin, owner, member):
     assert not portal_audits("membership.updated")
 
 
-def test_remove_frees_the_seat(org, client, member):
+def test_remove_uncovers_and_frees_the_seat(org, client, member):
     before = call(client, "get", "du/").json()["seats"]["used"]
     r = call(client, "post", f"du/members/{member.id}/remove/", {"reason": "graduated"})
-    assert r.status_code == 200 and r.json()["status"] == "deprovisioned"
+    assert r.status_code == 200
+    assert (r.json()["status"], r.json()["coverage"], r.json()["label"]) == ("active", "none", "not_covered")
     assert call(client, "get", "du/").json()["seats"]["used"] == before - 1
-    [entry] = portal_audits("membership.removed")
+    [entry] = portal_audits("membership.uncovered")
     assert entry.metadata["reason"] == "graduated" and entry.metadata["organization_id"] == str(org.id)
 
 
@@ -496,7 +497,7 @@ def test_two_admins_removing_each_other_at_once_leaves_one():
         t.start()
     for t in threads:
         t.join()
-    assert sorted(outcomes) == ["not_found", "ok"]
+    assert sorted(outcomes) == ["not_institution_admin", "ok"]  # the one uncovered first is no longer an admin
     assert Membership.objects.filter(organization=org, role=Membership.Role.ADMIN,
                                      status=Membership.Status.ACTIVE).count() == 1
 

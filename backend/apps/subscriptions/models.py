@@ -31,6 +31,8 @@ class Subscription(models.Model):
     starts_at = models.DateTimeField()
     expires_at = models.DateTimeField(null=True, blank=True)
     billing_interval = models.CharField(max_length=16)
+    # False: runs to `expires_at` and is never renewed (set when the owner joins an institution's package).
+    auto_renew = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

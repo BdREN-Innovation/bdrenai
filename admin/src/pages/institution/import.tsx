@@ -1,12 +1,12 @@
 import { useRef, useState } from 'react';
-import { CircleCheck, CircleMinus, CircleX, FileUp, RotateCcw, Upload } from 'lucide-react';
+import { CircleAlert, CircleCheck, CircleMinus, CircleX, FileUp, RotateCcw, Upload } from 'lucide-react';
 import type { ChangeEvent } from 'react';
-import type { ImportResponse, ImportRowInput, ImportRowStatus, InstitutionDetail } from '@/api/types';
+import type { ImportResponse, ImportRowInput, ImportRowResult, ImportRowStatus, InstitutionDetail } from '@/api/types';
 import type { LucideIcon } from 'lucide-react';
 import type { Tone } from '@/components/ui';
 import { Button, Card, Chip, ErrorState, Field, Notice, SeatMeter, Table, Td, Textarea, Th, useToast } from '@/components/ui';
 import { MAX_IMPORT_ROWS, csvToImportRows } from '@/lib/csv';
-import { IMPORT_REASON_LABEL } from '@/lib/labels';
+import { IMPORT_ACTION_LABEL, IMPORT_REASON_LABEL } from '@/lib/labels';
 import { formatNumber } from '@/lib/format';
 import { useImport } from '@/api/queries';
 
@@ -17,6 +17,19 @@ const ROW_CHIP: Record<ImportRowStatus, { label: string; tone: Tone; icon: Lucid
   skip: { label: 'Skipped', tone: 'neutral', icon: CircleMinus },
   error: { label: 'Error', tone: 'danger', icon: CircleX },
 };
+
+const OVER_CAP_CHIP = { label: "Won't fit", tone: 'warning', icon: CircleAlert } as const;
+
+/** A ready row the dry run says won't fit under the seat cap: the import leaves it out. */
+function overCap(row: ImportRowResult): boolean {
+  return row.status === 'ok' && row.reason === 'over_cap';
+}
+
+function doneText(result: ImportResponse): string {
+  const covered = result.covered ?? 0;
+  const invited = `${formatNumber(result.created)} invitations created`;
+  return covered > 0 ? `${invited}, ${formatNumber(covered)} existing members added to the package.` : `${invited}.`;
+}
 
 type Step = { kind: 'input' } | { kind: 'preview'; rows: ImportRowInput[]; result: ImportResponse } | { kind: 'done'; rows: ImportRowInput[]; result: ImportResponse };
 
@@ -33,22 +46,26 @@ function ResultTable({ rows, result }: { rows: ImportRowInput[]; result: ImportR
         </tr>
       </thead>
       <tbody>
-        {result.rows.map((row) => (
-          <tr key={row.index}>
-            <Td className="tabular text-ink-muted">{row.index + 1}</Td>
-            <Td className="font-medium">{row.email || rows[row.index]?.email || '—'}</Td>
-            <Td>{rows[row.index]?.name || '—'}</Td>
-            <Td>{rows[row.index]?.role || 'member'}</Td>
-            <Td>
-              <span className="flex flex-wrap items-center gap-2">
-                <Chip tone={ROW_CHIP[row.status].tone} icon={ROW_CHIP[row.status].icon}>
-                  {ROW_CHIP[row.status].label}
-                </Chip>
-                {row.reason ? <span className="text-xs text-ink-muted">{IMPORT_REASON_LABEL[row.reason] ?? row.reason}</span> : null}
-              </span>
-            </Td>
-          </tr>
-        ))}
+        {result.rows.map((row) => {
+          const chip = overCap(row) ? OVER_CAP_CHIP : ROW_CHIP[row.status];
+          return (
+            <tr key={row.index}>
+              <Td className="tabular text-ink-muted">{row.index + 1}</Td>
+              <Td className="font-medium">{row.email || rows[row.index]?.email || '—'}</Td>
+              <Td>{rows[row.index]?.name || '—'}</Td>
+              <Td>{rows[row.index]?.role || 'member'}</Td>
+              <Td>
+                <span className="flex flex-wrap items-center gap-2">
+                  <Chip tone={chip.tone} icon={chip.icon}>
+                    {chip.label}
+                  </Chip>
+                  {row.reason ? <span className="text-xs text-ink-muted">{IMPORT_REASON_LABEL[row.reason] ?? row.reason}</span> : null}
+                  {row.status === 'ok' && row.action && !overCap(row) ? <span className="text-xs text-ink-muted">{IMPORT_ACTION_LABEL[row.action]}</span> : null}
+                </span>
+              </Td>
+            </tr>
+          );
+        })}
       </tbody>
     </Table>
   );
@@ -86,7 +103,7 @@ export function Import({ institution }: { institution: InstitutionDetail }) {
       {
         onSuccess: (result) => {
           setStep({ kind: 'done', rows, result });
-          notify(`${formatNumber(result.created)} invitations created.`);
+          notify(doneText(result));
           if (result.email_failures > 0) notify(`${result.email_failures} emails could not be sent. Resend them from Invitations.`, 'warning');
         },
       },
@@ -104,7 +121,7 @@ export function Import({ institution }: { institution: InstitutionDetail }) {
 
   if (step.kind === 'input') {
     return (
-      <Card title="Import members" description="Each row gets an invitation email. Columns: email, name, role (member, admin, billing or owner; blank means member).">
+      <Card title="Import members" description="Each new person gets an invitation email; people already in this institution without a package are added to it. Columns: email, name, role (member, admin, billing or owner; blank means member).">
         <Field label="CSV rows" error={parseError} hint={`Paste rows, or upload a .csv file. A header row is optional. Up to ${formatNumber(MAX_IMPORT_ROWS)} rows.`}>
           {(props) => (
             <Textarea
@@ -141,8 +158,8 @@ export function Import({ institution }: { institution: InstitutionDetail }) {
       title={done ? 'Import finished' : 'Check the import'}
       description={
         done
-          ? `${formatNumber(result.created)} invitations created${result.email_failures > 0 ? `, ${result.email_failures} emails failed` : ''}.`
-          : 'Nothing has been sent yet. Rows marked ready will be invited, in file order, until the seat cap is reached.'
+          ? `${doneText(result)}${result.email_failures > 0 ? ` ${result.email_failures} emails failed.` : ''}`
+          : 'Nothing has been sent yet. Rows marked ready are handled in file order until the seat cap is reached: new people are invited, people already in this institution without a package are added to it at once, and people with a personal plan are invited so they can agree to switch.'
       }
     >
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
@@ -163,7 +180,7 @@ export function Import({ institution }: { institution: InstitutionDetail }) {
       </div>
       {!done && summary.fits < summary.ok ? (
         <Notice>
-          Only {formatNumber(summary.fits)} of {formatNumber(summary.ok)} ready rows fit under the seat cap. The rest will be marked over the cap.
+          Only {formatNumber(summary.fits)} of {formatNumber(summary.ok)} ready rows fit under the seat cap. The rows marked “Won&apos;t fit” below will not be imported.
         </Notice>
       ) : null}
       <ResultTable rows={rows} result={result} />
@@ -174,7 +191,7 @@ export function Import({ institution }: { institution: InstitutionDetail }) {
         </Button>
         {!done ? (
           <Button variant="primary" icon={Upload} loading={importRows.isPending} disabled={summary.fits === 0} onClick={() => confirm(rows)}>
-            Invite {formatNumber(summary.fits)} {summary.fits === 1 ? 'person' : 'people'}
+            Import {formatNumber(summary.fits)} {summary.fits === 1 ? 'person' : 'people'}
           </Button>
         ) : null}
       </div>

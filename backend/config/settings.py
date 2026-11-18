@@ -175,5 +175,6 @@ LOGGING = {
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 USE_TZ = True
 TIME_ZONE = "UTC"
+BDREN_USAGE_TIMEZONE = env("BDREN_USAGE_TIMEZONE", "Asia/Dhaka")
 LANGUAGE_CODE = "en-us"
 STATIC_URL = "static/"

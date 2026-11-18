@@ -31,5 +31,9 @@ class InvitationAcceptView(_Throttled):
     def post(self, request, token):
         if not request.user.is_authenticated:
             return JsonResponse(NOT_SIGNED_IN, status=401)
-        result = services.accept_invitation(token, user=request.user, ip_address=client_ip(request))
+        data = request.data if isinstance(request.data, dict) else {}
+        result = services.accept_invitation(
+            token, user=request.user, ip_address=client_ip(request),
+            end_personal_plan=data.get("end_personal_plan") is True,
+        )
         return JsonResponse(result)

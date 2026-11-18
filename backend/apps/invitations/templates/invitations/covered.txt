@@ -1,0 +1,9 @@
+{% autoescape off %}Hello,
+
+{{ institution }} has added you to its package on BDREN AI. From now on the BDREN AI apps you use run on the institution's package.
+
+Your account, history and files stay as they are; there is nothing to do. See your plan here:
+{{ url }}
+
+BDREN AI
+{% endautoescape %}

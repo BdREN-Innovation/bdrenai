@@ -11,12 +11,21 @@ import { ROLES } from '@/lib/labels';
 
 type Notify = ReturnType<typeof useToast>;
 
+function reportCovered(result: CreateInvitationResponse, notify: Notify) {
+  const person = result.member ? result.member.user.name || result.member.user.email : 'This person';
+  const institution = result.institution?.name ?? 'the institution';
+  notify(`${person} already belonged to ${institution} and is now on its package. No invitation was needed.`);
+  if (!result.email_sent) notify(`The notice email to ${person} could not be sent.`, 'warning');
+}
+
 function reportInvite(result: CreateInvitationResponse, notify: Notify) {
+  if (result.outcome === 'covered' || !result.invitation) return reportCovered(result, notify);
   notify(`Invitation sent to ${result.invitation.email}.`);
   if (result.warning === 'institution_suspended') {
     notify('This institution is suspended. The person can accept, but cannot use the apps until it is reactivated.', 'warning');
   }
   if (!result.email_sent) notify(`The email to ${result.invitation.email} could not be sent. Use Resend.`, 'warning');
+  return undefined;
 }
 
 interface InviteAdminDialogProps {

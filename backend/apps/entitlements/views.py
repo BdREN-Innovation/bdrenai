@@ -10,7 +10,7 @@ from apps.usage.services import check_entitlement_status
 
 from .auth import resolve_caller_and_product
 from .models import Entitlement
-from .services import current_period_bounds
+from .services import current_period_bounds, user_plan
 
 
 class EntitlementCheckView(APIView):
@@ -48,7 +48,7 @@ class EntitlementCheckView(APIView):
             )
         except PermissionError as e:
             return JsonResponse({"error": "forbidden", "detail": str(e)}, status=403)
-        return JsonResponse(report)
+        return JsonResponse({**report, "plan": user_plan(user, product)})
 
 
 class CurrentEntitlementsView(APIView):
@@ -78,4 +78,25 @@ class CurrentEntitlementsView(APIView):
                 "is_override": e.is_override,
                 "reset_at": p_end.strftime("%Y-%m-%dT%H:%M:%SZ"),
             })
-        return JsonResponse({"entitlements": items})
+        return JsonResponse({"entitlements": items, "plan": user_plan(request.user)})
+
+
+class PlanView(APIView):
+    """GET|POST /api/v1/entitlements/plan/: the user's institution, coverage and plan source (`user_plan`).
+    Browser session, or a product's `X-Product-Api-Key` with `issuer` + `zitadel_subject` or `user_id`
+    (query string for GET, JSON body for POST); `product` is optional."""
+
+    permission_classes = [AllowAny]  # Auth handled strictly by resolve_caller_and_product
+
+    def get(self, request):
+        return self._plan(request, request.GET)
+
+    def post(self, request):
+        return self._plan(request, request.data if isinstance(request.data, dict) else {})
+
+    def _plan(self, request, data):
+        try:
+            user, _, product = resolve_caller_and_product(request, data.get("product"))
+        except PermissionDenied as e:
+            return JsonResponse({"error": "forbidden", "detail": str(e)}, status=403)
+        return JsonResponse(user_plan(user, product))

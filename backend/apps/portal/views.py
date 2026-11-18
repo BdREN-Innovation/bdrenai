@@ -1,19 +1,25 @@
 """Institution-admin portal API (`/api/v1/portal/`, docs/SUPERADMIN_API.md "Portal API")."""
-from django.http import JsonResponse
+from django.http import JsonResponse, StreamingHttpResponse
 from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView
 
 from apps.audit.services import client_ip
 from apps.invitations.errors import ContractErrors, ServiceError
-from apps.invitations.shapes import serialize_member
+from apps.invitations.services import portal_member_shape
 from apps.invitations.throttles import SendsInvitations
 
-from . import services
+from . import dashboard, services, usage
 
 
 def _invited(invited, status=200):
+    """`outcome` `covered`: an affiliated free-tier member was added to the package instead of being invited."""
     return JsonResponse(
-        {"invitation": services.portal_invitation(invited.invitation), "email_sent": invited.email_sent},
+        {
+            "outcome": invited.outcome,
+            "invitation": services.portal_invitation(invited.invitation) if invited.invitation else None,
+            "member": portal_member_shape(invited.membership) if invited.membership else None,
+            "email_sent": invited.email_sent,
+        },
         status=status,
     )
 
@@ -49,13 +55,19 @@ class MembersView(PortalView):
 class MemberView(PortalView):
     def patch(self, request, slug, membership_id):
         membership = services.update_member(request.user, slug, membership_id, request.data, client_ip(request))
-        return JsonResponse(serialize_member(membership))
+        return JsonResponse(portal_member_shape(membership))
 
 
 class MemberRemoveView(PortalView):
     def post(self, request, slug, membership_id):
         membership = services.remove_member(request.user, slug, membership_id, request.data, client_ip(request))
-        return JsonResponse(serialize_member(membership))
+        return JsonResponse(portal_member_shape(membership))
+
+
+class MemberCoverView(SendsInvitations, PortalView):
+    def post(self, request, slug, membership_id):
+        covered = services.add_to_package(request.user, slug, membership_id, request.data, client_ip(request))
+        return JsonResponse({"member": portal_member_shape(covered.membership), "email_sent": covered.email_sent})
 
 
 class InvitationsView(SendsInvitations, PortalView):
@@ -80,3 +92,27 @@ class InvitationRevokeView(PortalView):
 class ImportView(SendsInvitations, PortalView):
     def post(self, request, slug):
         return JsonResponse(services.import_members(request.user, slug, request.data, client_ip(request)).body())
+
+
+class DashboardView(PortalView):
+    def get(self, request, slug):
+        return JsonResponse(dashboard.dashboard(self.organization, request.GET))
+
+
+class UsageView(PortalView):
+    def get(self, request, slug):
+        return JsonResponse(usage.report(self.organization, request.GET))
+
+
+class UsageExportView(PortalView):
+    def get(self, request, slug):
+        filename, lines = usage.export(request.user, self.organization, request.GET, client_ip(request))
+        response = StreamingHttpResponse(lines, content_type="text/csv; charset=utf-8")
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        response["Cache-Control"] = "no-store"
+        return response
+
+
+class DomainsView(PortalView):
+    def get(self, request, slug):
+        return JsonResponse(services.sign_in_domains(self.organization))

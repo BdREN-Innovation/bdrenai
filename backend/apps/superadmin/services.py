@@ -31,9 +31,11 @@ from apps.invitations.services import (
     seats_expression,
     seats_used,
     with_counts,
+    with_labels,
     with_seats,
 )
 from apps.organizations.models import Membership, Organization
+from apps.organizations.services import ensure_domains_free
 
 from . import shapes
 
@@ -127,7 +129,8 @@ def find_institution(slug, field="institution"):
 
 
 def update_institution(org, data, *, actor=None, ip_address=None):
-    """PATCH: any of name/type/timezone/contact_email/sign_in_domains/seat_cap; a cap change needs `reason`."""
+    """PATCH: any of name/type/timezone/contact_email/sign_in_domains/seat_cap; a cap change needs `reason`. A sign-in
+    domain another institution lists is 409 `domain_taken`."""
     fields = clean_institution(data, partial=True)
     reason = clean_reason(data.get("reason"))
     with transaction.atomic():
@@ -137,6 +140,8 @@ def update_institution(org, data, *, actor=None, ip_address=None):
             raise invalid({"reason": "Give a reason for changing the seat cap."})
         if not changes:
             return current
+        if "sign_in_domains" in changes:
+            ensure_domains_free(changes["sign_in_domains"][1], exclude=current)
         for key, (_, new) in changes.items():
             setattr(current, key, new)
         update = [*changes, "updated_at"]
@@ -209,8 +214,9 @@ def institution_history(org):
 # ---------------------------------------------------------------- users
 
 def users():
-    """Users with memberships (and their institutions) prefetched and `is_superadmin` annotated."""
-    memberships = Membership.objects.select_related("organization").order_by("created_at", "pk")
+    """Users with memberships (their institutions, and the `with_labels` annotations for each membership's label)
+    prefetched and `is_superadmin` annotated."""
+    memberships = with_labels(Membership.objects.select_related("organization")).order_by("created_at", "pk")
     return User.objects.annotate(
         is_superadmin=Exists(PlatformRoleAssignment.objects.filter(user=OuterRef("pk"), role=SUPER_ADMIN))
     ).prefetch_related(Prefetch("memberships", queryset=memberships))

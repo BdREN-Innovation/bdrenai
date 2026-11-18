@@ -128,7 +128,7 @@ export function InstitutionsPage() {
                 <Th>Institution</Th>
                 <Th>Status</Th>
                 <Th>Seats</Th>
-                <Th>Members</Th>
+                <Th>Covered</Th>
                 <Th>Admins</Th>
                 <Th>Waiting</Th>
                 <Th>Created</Th>
