@@ -1,7 +1,7 @@
 "use client";
 import React, { useEffect, useRef, useState } from "react";
 import { NAV_LINKS } from "@/content/site";
-import { MyProfile, PROFILE_EVENT, PROFILE_PATH, apiFetch, logout } from "@/lib/api";
+import { ADMIN_CONSOLE_URL, MyProfile, PROFILE_EVENT, PROFILE_PATH, apiFetch, logout } from "@/lib/api";
 import { AdminInstitution, fetchAdminInstitutions, membersPagePath } from "@/lib/portal";
 import { Avatar } from "./Avatar";
 import { Logo } from "./Logo";
@@ -83,6 +83,15 @@ function ProfileMenu({ user }: { user: MyProfile }) {
               </span>
             </a>
           ))}
+          {user.is_superadmin && (
+            <a role="menuitem" href={ADMIN_CONSOLE_URL} className="flex min-h-[48px] items-center gap-3 px-4 hover:bg-ground">
+              <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6l8-3z" />
+                <path d="M9 12l2 2 4-4" />
+              </svg>
+              Admin panel
+            </a>
+          )}
           <button
             role="menuitem"
             type="button"

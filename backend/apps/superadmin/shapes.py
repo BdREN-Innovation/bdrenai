@@ -1,5 +1,8 @@
 """JSON shapes of the superadmin API (docs/SUPERADMIN_API.md). Querysets come from `services`, annotated."""
+from decimal import Decimal
+
 from apps.invitations.shapes import iso, person
+from apps.packages.services import AppsChange, TermChange
 
 LIST_ADMINS = 3
 
@@ -150,3 +153,155 @@ def platform_admin(assignment):
         "user": {"id": str(user.id), "name": user.name, "email": user.email, "status": user.status},
         "granted_at": iso(assignment.created_at),
     }
+
+
+# ---------------------------------------------------------------- configuration: apps, features, packages
+
+def app_ref(product):
+    return {"slug": product.slug, "name": product.name}
+
+
+def feature(item):
+    """Needs `in_use` (`apps.packages.services` annotates it)."""
+    return {
+        "id": str(item.id),
+        "key": item.key,
+        "name": item.name,
+        "unit": item.unit,
+        "description": item.description,
+        "quota_policy": item.quota_policy,
+        "status": item.status,
+        "in_use": item.in_use,
+    }
+
+
+def app(product):
+    """Needs `apps.packages.services.apps()`."""
+    return {
+        "id": str(product.id),
+        "slug": product.slug,
+        "name": product.name,
+        "description": product.description,
+        "status": product.status,
+        "sort_order": product.sort_order,
+        "features": [feature(f) for f in product.features.all()],
+        "packages": {"single": product.single_packages, "bundle": product.bundle_packages},
+    }
+
+
+def money(value):
+    return f"{value:.2f}"
+
+
+def limit_feature(item):
+    return {
+        "id": str(item.id),
+        "key": item.key,
+        "name": item.name,
+        "unit": item.unit,
+        "app": app_ref(item.product),
+    }
+
+
+def limit(item):
+    return {
+        "feature": limit_feature(item.feature),
+        "limit_value": item.limit_value,
+        "limit_period": item.limit_period,
+        "on_limit": item.on_limit,
+    }
+
+
+def _terms(version):
+    return {
+        "price": money(version.price),
+        "billing_interval": version.billing_interval,
+        "price_unit": version.price_unit,
+        "trial_days": version.trial_days,
+        "seat_limit": version.seat_limit,
+        "apps": [app_ref(p) for p in version.products.all()],
+    }
+
+
+def package_row(pkg, current):
+    """`pkg` from `apps.packages.services.packages()`; `current` is its latest version, apps prefetched."""
+    return {
+        "id": str(pkg.id),
+        "kind": pkg.kind,
+        "name": pkg.name,
+        "slug": pkg.slug,
+        "status": pkg.status,
+        "audience": pkg.audience,
+        "is_public": pkg.is_public,
+        "highlight": pkg.highlight,
+        "sort_order": pkg.sort_order,
+        **_terms(current),
+        "currency": current.currency,
+        "current_version": current.version,
+        "subscribers": pkg.subscribers,
+        "updated_at": iso(pkg.updated_at),
+    }
+
+
+def package_list_row(pkg):
+    """Needs `apps.packages.services.package_list()`."""
+    return package_row(pkg, pkg.current_versions[0])
+
+
+def package_version(version):
+    return {
+        "version": version.version,
+        "created_at": iso(version.created_at),
+        "created_by": person(version.created_by),
+        "change_reason": version.change_reason,
+        "migration_policy": version.migration_policy,
+        **_terms(version),
+        "limits": [limit(item) for item in version.limits.all()],
+        "subscribers": version.subscribers,
+    }
+
+
+def package_detail(pkg):
+    """Needs `apps.packages.services.load_package()`."""
+    current = pkg.all_versions[0]
+    return {
+        **package_row(pkg, current),
+        "description": pkg.description,
+        "limits": [limit(item) for item in current.limits.all()],
+        "versions": [package_version(v) for v in pkg.all_versions],
+    }
+
+
+def _term_value(value):
+    return money(value) if isinstance(value, Decimal) else value
+
+
+def package_change(change):
+    """A `TermChange`, `AppsChange` or `LimitChange` from `apps.packages.services.version_changes()`."""
+    if isinstance(change, TermChange):
+        return {"field": change.field, "from": _term_value(change.before), "to": _term_value(change.after)}
+    if isinstance(change, AppsChange):
+        return {
+            "field": "apps",
+            "added": [app_ref(p) for p in change.added],
+            "removed": [app_ref(p) for p in change.removed],
+        }
+    return {"field": "limit", "feature": limit_feature(change.feature), "from": change.before, "to": change.after}
+
+
+def _holder(subscription):
+    """The institution holding a subscription, or for a personal account its owner."""
+    org = subscription.account.organization
+    if org is not None:
+        return institution_ref(org)
+    owner = subscription.account.owner_user
+    return {"slug": None, "name": owner.name or owner.email}
+
+
+def affected(subscriptions):
+    """Select related `account__organization` and `account__owner_user` first."""
+    rows = [
+        {**_holder(sub), "subscription_id": str(sub.id), "status": sub.status}
+        for sub in subscriptions
+    ]
+    return {"subscriptions": len(rows), "institutions": rows}

@@ -166,6 +166,8 @@ export interface BillingSummary {
 }
 
 export const PROFILE_PATH = "/api/v1/auth/profile/";
+/** Superadmin console; nginx serves it at /admin/. Local dev points it at the Vite server. */
+export const ADMIN_CONSOLE_URL = process.env.NEXT_PUBLIC_ADMIN_URL || "/admin/";
 
 /** Fired when the signed-in user's profile changes, so the header updates without a reload. */
 export const PROFILE_EVENT = "bdren:profile";

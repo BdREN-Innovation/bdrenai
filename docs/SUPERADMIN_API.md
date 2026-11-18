@@ -339,3 +339,137 @@ SUPPORT    Help
   the "admin console" link points to `/admin/` and shows only for superadmins (profile `is_superadmin`).
 - The old Next.js admin page (`app/admin`, `components/AdminDashboard.tsx`) is removed; nginx routes `/admin/`
   to the SPA.
+
+---
+
+# Phase 2a: Configuration → Packages (and Apps & features)
+
+Configuration becomes a real page with tabs **Packages** and **Apps & features** (Billing, Invitations,
+Email and Defaults tabs come later). Packages are the catalog BdREN AI sells: a **single** package
+belongs to one app; a **combined** package (bundle) includes several or all apps under one price.
+
+## Data model changes
+
+### `Product` (apps.products) — the apps
+Seed (`seed_bdren_catalog`, idempotent) ensures four apps with the website's slugs and names:
+`synapse` Synapse, `mindspear` Mindspear, `mail-wizard` AI Mail Wizard, `quigen` QuiGen (descriptions from
+`frontend/src/content/products.ts`; fix Synapse's wrong description). New fields: `sort_order` int (default 0),
+`updated_at`. Existing features stay; new apps start without features.
+
+### `Feature` — what a limit measures
+Unchanged fields. Superadmins add/edit features per app (key `[a-z0-9_]{2,64}` unique per app, name, unit,
+description, quota_policy, status). A feature in use by any package version cannot change `key` or `unit`
+(409 `feature_in_use`); it can be set inactive.
+
+### `Package`
+| field | change |
+|---|---|
+| `kind` | new: `single` / `bundle`, default `single` |
+| `product` | becomes **nullable**: required for `single`, null for `bundle` |
+| `slug` | unique per product for singles; unique among bundles (partial unique index where product is null) |
+| `audience` | new char(255), blank — "who it is for" line shown on pricing |
+| `price_unit` | new: `per_seat` / `per_institution` / `flat`, default `per_seat` |
+| `is_public` | new bool default true — shown on the public pricing page |
+| `highlight` | new bool default false — "recommended" badge |
+| `sort_order` | new int default 0 |
+| `updated_at` | new |
+| `price`, `currency`, `billing_interval`, `trial_days` | kept as the **current published values** (denormalised from the latest version, updated on publish) so existing catalog/subscription code keeps working |
+| `status` | `active` / `inactive` / `archived` (archive = no new subscribers; never delete) |
+
+### `PackageVersion` — immutable commercial snapshot
+New fields: `price` decimal, `currency`, `billing_interval`, `price_unit`, `trial_days`, `seat_limit`
+(positive int, null = unlimited; feeds the institution seat cap default in a later phase),
+`change_reason` text (required for v2+), `created_by` FK User null, and `products` M2M Product
+(the apps included in this version; exactly `[package.product]` for singles, ≥ 2 apps for bundles).
+Data migration fills these for existing versions from their package.
+
+### `PackageLimit`
+`limit_period` gains `weekly`. A limit's feature must belong to one of the version's included apps
+(400 `feature_not_in_package`). New field `on_limit`: `block` / `warn`, default `block`.
+
+`Subscription.product` stays as is in this phase (bundle subscriptions are wired in the Subscriptions phase);
+nothing here creates subscriptions.
+
+## Superadmin API additions (`/api/v1/superadmin/config/`)
+
+All superadmin-only, same conventions and error shapes as above, every mutation audited
+(`metadata.package_id` / `metadata.product_id`).
+
+### Apps & features
+`GET config/apps/` → `{"results": [{"id","slug","name","description","status","sort_order",
+"features": [Feature], "packages": {"single": n, "bundle": n}}]}`
+`Feature` = `{"id","key","name","unit","description","quota_policy","status","in_use": bool}`
+`PATCH config/apps/<slug>/` `{"name"?, "description"?, "status"?, "sort_order"?}`
+`POST config/apps/<slug>/features/` `{"key","name","unit","description"?,"quota_policy"?}` → 201 Feature (409 `key_taken`)
+`PATCH config/features/<id>/` `{"name"?,"unit"?,"description"?,"quota_policy"?,"status"?,"key"?}` (409 `feature_in_use` for key/unit)
+
+### Packages
+`PackageRow`:
+```json
+{"id","kind","name","slug","status","audience","is_public","highlight","sort_order",
+ "apps": [{"slug","name"}], "price": "1500.00", "currency": "BDT", "billing_interval": "monthly",
+ "price_unit": "per_seat", "trial_days": 14, "seat_limit": 100|null,
+ "current_version": 3, "subscribers": 12, "updated_at"}
+```
+`GET config/packages/?kind=single|bundle&app=<slug>&status=&q=&page=` → paginated `PackageRow` (ordered by kind
+bundle first, then app sort_order, then sort_order, name). `app` matches singles of that app and bundles including it.
+Without `status` the list leaves out archived packages (like institutions leave out removed ones); `status=archived` shows them.
+
+`POST config/packages/` body = `PackageDraft`:
+```json
+{"kind": "bundle", "app": "<slug>" (single only), "apps": ["synapse","mindspear","mail-wizard","quigen"] (bundle only),
+ "name","slug","description","audience","is_public","highlight","sort_order",
+ "price": "4500.00","currency": "BDT","billing_interval": "monthly|yearly|free","price_unit","trial_days","seat_limit",
+ "limits": [{"feature_id","limit_value","limit_period": "daily|weekly|monthly|yearly|lifetime","on_limit": "block|warn"}]}
+```
+→ 201 `PackageDetail` (creates v1). Validation: free ⇒ price 0; paid ⇒ price > 0; bundle needs ≥ 2 active apps (a new version may keep an
+included app that has since become inactive, but cannot add one);
+duplicate feature in limits → 400; slug rules as above (409 `slug_taken`).
+
+`GET config/packages/<id>/` → `PackageDetail` = `PackageRow` + `"description"`, `"limits": [Limit]` (current version,
+each with `"feature": {"id","key","name","unit","app": {"slug","name"}}`), and
+`"versions": [{"version","created_at","created_by": {"id","name","email"}|null,"change_reason","migration_policy",
+"price","billing_interval","price_unit","trial_days","seat_limit","apps": [...],"limits": [Limit],"subscribers": n}]` (newest first).
+
+`PATCH config/packages/<id>/` — presentation only, no new version: `name, description, audience, is_public,
+highlight, sort_order`. Anything commercial (price, interval, price_unit, trial, seat_limit, apps, limits) → 400
+`use_new_version`.
+
+`POST config/packages/<id>/preview/` body = the commercial part of `PackageDraft` → no writes;
+`{"changes": [{"field": "price", "from": "1500.00", "to": "1800.00"} | {"field": "limit", "feature": {...}, "from": {...}|null, "to": {...}|null} | {"field": "apps", "added": [...], "removed": [...]}],
+"affected": {"subscriptions": n, "institutions": [{"slug","name","subscription_id","status"}]}}`
+(affected = active/trial subscriptions on any version of this package; a personal account's subscription has
+`"slug": null` and its owner's name). Empty `changes` → the UI says nothing changed. Commercial fields left out of a
+preview or version body keep the current version's values.
+
+`POST config/packages/<id>/versions/` body = commercial `PackageDraft` + `"change_reason"` (required, 400 otherwise)
++ `"migration_policy": "new_only|immediate|on_renewal|selected_only"` (required) + `"selected_subscriptions": [ids]` (selected_only)
+→ 201 `{"package": PackageDetail, "migrated": n, "scheduled": n}`. Reuses `publish_new_package_version`
+(extend it for the snapshot fields; keep its behaviour and tests). No changes → 400 `no_changes`.
+
+`POST config/packages/<id>/archive/` `{"reason"}` · `POST config/packages/<id>/restore/` `{"reason"}` → `PackageDetail`.
+The reason is required (400); archiving an archived package is 409 `already_archived`, restoring one that is not
+archived is 409 `not_archived`.
+Archived packages are hidden from the public catalog and cannot get new subscribers; existing ones keep running.
+
+`GET /api/v1/catalog/products/` (public) keeps its shape for singles and excludes archived/non-public packages;
+add a top-level `"bundles": [...]` list with the same package shape plus `"apps"`. Only active apps are offered: a
+bundle lists its active apps and their limits, and is left out when fewer than two are active; single packages of an
+app that is not active are neither listed nor subscribable (`catalog/subscribe/` → 404 `package_not_found`).
+
+## Admin SPA
+`/configuration` replaces the Soon page: tabs **Packages** (default) and **Apps & features**.
+- **Packages**: segmented filter All / Combined / Single, app filter, status filter, search; table grouped
+  "Combined packages" then one group per app; columns name (+ audience, Public/Hidden and Recommended chips),
+  apps (chips; "All apps" when a bundle includes every active app), price (৳ formatted, "per seat / month"),
+  trial, seat limit, version, subscribers, status; row → detail. Buttons "New combined package" and "New package".
+- **Package editor** (create and new-version, one component): kind (fixed when editing), app (single) or app
+  checklist with "All apps" shortcut (bundle), name, slug (auto from name, editable only at create), audience,
+  description, price + unit + interval, trial days, seat limit, public/recommended toggles, **limits table**
+  grouped by app: feature (only features of included apps), value, period, on limit; add/remove rows.
+  On save of an existing package: **Review changes** step showing the preview diff and affected institutions,
+  migration timing radio (with a plain sentence for each), selected institutions when "Selected", required reason, then Publish.
+- **Package detail** page `/configuration/packages/$id`: summary card, current limits by app, version history
+  (expandable, with what changed per version), actions Edit details (presentation PATCH), New version, Archive/Restore.
+- **Apps & features**: one card per app with its features table (key, name, unit, quota policy, status, in use),
+  add/edit feature dialog; app name/description/order edit.

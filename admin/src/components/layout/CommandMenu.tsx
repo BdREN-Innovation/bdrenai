@@ -6,7 +6,7 @@ import { Building2, Monitor, Moon, Sun } from 'lucide-react';
 import type { ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { useInstitutionOptions } from '@/api/queries';
-import { NAV_ITEMS } from './nav';
+import { CONFIGURATION_PAGES, NAV_ITEMS } from './nav';
 import { useTheme } from '@/lib/theme';
 
 interface CommandMenuProps {
@@ -72,6 +72,21 @@ export function CommandMenu({ open, onOpenChange }: CommandMenuProps) {
             >
               <span className="flex-1 truncate">{item.label}</span>
               {item.soon ? <span className="text-xs text-ink-muted">Soon</span> : null}
+            </Item>
+          ))}
+          {CONFIGURATION_PAGES.map((item) => (
+            <Item
+              key={item.tab}
+              icon={item.icon}
+              value={`page ${item.label}`}
+              keywords={item.keywords}
+              onSelect={() => {
+                close();
+                void navigate({ to: '/configuration', search: item.tab === 'packages' ? {} : { tab: item.tab } });
+              }}
+            >
+              <span className="flex-1 truncate">{item.label}</span>
+              <span className="text-xs text-ink-muted">Configuration</span>
             </Item>
           ))}
         </Command.Group>

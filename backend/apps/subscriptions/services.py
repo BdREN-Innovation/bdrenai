@@ -41,6 +41,8 @@ def create_subscription(
             raise ValueError("Package has no active version")
     else:
         package = package_version.package
+    if package.kind == Package.Kind.BUNDLE:
+        raise ValueError("Combined packages cannot be subscribed to in this phase")
 
     now = starts_at or timezone.now()
     trial_days = package.trial_days if use_trial else 0

@@ -1,9 +1,9 @@
-import { ChartColumn, CreditCard, Repeat, Settings2 } from 'lucide-react';
+import { ChartColumn, CreditCard, Repeat } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Page } from '@/components/layout/Page';
 import { EmptyState } from '@/components/ui';
 
-export type SoonArea = 'usage' | 'billing' | 'subscriptions' | 'configuration';
+export type SoonArea = 'usage' | 'billing' | 'subscriptions';
 
 const AREAS: Record<SoonArea, { title: string; icon: LucideIcon; phase: string; body: string }> = {
   usage: {
@@ -23,12 +23,6 @@ const AREAS: Record<SoonArea, { title: string; icon: LucideIcon; phase: string; 
     icon: Repeat,
     phase: 'Phase 2',
     body: 'Every institution’s package per app, its period and renewal date, scheduled downgrades, and actions to change, extend, suspend or cancel.',
-  },
-  configuration: {
-    title: 'Configuration',
-    icon: Settings2,
-    phase: 'Phase 2',
-    body: 'Packages and their versions, the apps sold on the platform, billing settings and email templates. Every change is versioned with a reason.',
   },
 };
 

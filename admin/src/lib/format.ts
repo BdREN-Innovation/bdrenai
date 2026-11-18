@@ -1,4 +1,4 @@
-import type { Seats } from '@/api/types';
+import type { BillingInterval, PackageTerms, PriceUnit, Seats } from '@/api/types';
 
 const dateFormat = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 const dateTimeFormat = new Intl.DateTimeFormat('en-GB', {
@@ -61,4 +61,31 @@ export function initials(name: string, email = ''): string {
 export function humanize(value: string): string {
   const text = value.replace(/[._]/g, ' ');
   return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+const wholeMoney = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
+const centsMoney = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/** "৳1,500" or "৳1,500.50" for BDT; other currencies keep their code ("USD 20"). */
+export function formatMoney(amount: string, currency: string): string {
+  const number = Number(amount);
+  const value = (Number.isInteger(number) ? wholeMoney : centsMoney).format(number);
+  return currency === 'BDT' ? `৳${value}` : `${currency} ${value}`;
+}
+
+const UNIT_TEXT: Record<PriceUnit, string> = { per_seat: 'per seat', per_institution: 'per institution', flat: '' };
+const INTERVAL_TEXT: Record<Exclude<BillingInterval, 'free'>, string> = { monthly: 'month', yearly: 'year' };
+
+/** "per seat / month", "per institution / year", "/ month" for a flat price, "" when free. */
+export function formatCadence(unit: PriceUnit, interval: BillingInterval): string {
+  if (interval === 'free') return '';
+  return [UNIT_TEXT[unit], `/ ${INTERVAL_TEXT[interval]}`].filter(Boolean).join(' ');
+}
+
+export type PriceTerms = Pick<PackageTerms, 'price' | 'currency' | 'billing_interval' | 'price_unit'>;
+
+/** "৳1,500 per seat / month", or "Free". */
+export function formatPrice(terms: PriceTerms): string {
+  if (terms.billing_interval === 'free') return 'Free';
+  return `${formatMoney(terms.price, terms.currency)} ${formatCadence(terms.price_unit, terms.billing_interval)}`;
 }

@@ -4,6 +4,10 @@ import type { ReactNode } from 'react';
 import type { InvitationStatus } from '@/api/types';
 import { InstitutionDetailPage, INSTITUTION_TABS } from '@/pages/institution';
 import type { InstitutionTab } from '@/pages/institution';
+import { CONFIGURATION_TABS } from '@/pages/configuration/tabs';
+import type { ConfigurationTab } from '@/pages/configuration/tabs';
+import { PackageDetailPage } from '@/pages/configuration/package';
+import { ConfigurationPage } from '@/pages/configuration';
 import { InvitationsPage } from '@/pages/invitations';
 import { InstitutionsPage } from '@/pages/institutions';
 import { DashboardPage } from '@/pages/dashboard';
@@ -42,6 +46,16 @@ const invitationsRoute = createRoute({
   component: InvitationsPage,
 });
 
+const configurationRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/configuration',
+  validateSearch: (search: Record<string, unknown>): { tab?: ConfigurationTab } => {
+    const tab = CONFIGURATION_TABS.find((value) => value === search.tab);
+    return tab && tab !== 'packages' ? { tab } : {};
+  },
+  component: ConfigurationPage,
+});
+
 const routeTree = rootRoute.addChildren([
   page('/', DashboardPage),
   page('/institutions', InstitutionsPage),
@@ -54,7 +68,8 @@ const routeTree = rootRoute.addChildren([
   page('/usage', () => <SoonPage area="usage" />),
   page('/billing', () => <SoonPage area="billing" />),
   page('/subscriptions', () => <SoonPage area="subscriptions" />),
-  page('/configuration', () => <SoonPage area="configuration" />),
+  configurationRoute,
+  page('/configuration/packages/$id', PackageDetailPage),
 ]);
 
 export function createAppRouter(history?: RouterHistory) {

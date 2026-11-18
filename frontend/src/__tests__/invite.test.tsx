@@ -13,6 +13,7 @@ const PREVIEW = `/api/v1/invitations/${TOKEN}/`;
 const INVITE: InvitationPreview = {
   status: "pending",
   email_masked: "r***@du.ac.bd",
+  email: null,
   institution: { name: "University of Dhaka" },
   role: "admin",
   invited_by_name: "Nadia Islam",

@@ -23,7 +23,9 @@ class Product(models.Model):
     description = models.TextField(blank=True)
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.ACTIVE)
     api_key_hash = models.CharField(max_length=64, blank=True, db_index=True)
+    sort_order = models.IntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def rotate_api_key(self) -> str:
         raw = f"bdren_prod_{self.slug}_{secrets.token_urlsafe(32)}"

@@ -131,6 +131,11 @@ const ERROR_TEXT: Record<string, string> = {
   cannot_suspend_self: 'You cannot suspend your own account.',
   ambiguous_email: 'More than one account uses that email. Add the user by ID instead.',
   not_superadmin: 'Your account does not have superadmin access.',
+  key_taken: 'This app already has a feature with that key.',
+  feature_in_use: 'A package uses this feature, so its key and unit cannot change. You can set it inactive instead.',
+  feature_not_in_package: 'A limit uses a feature of an app that is not in this package.',
+  use_new_version: 'Price, apps and limits change only through a new version.',
+  no_changes: 'Nothing changed, so there is no new version to publish.',
 };
 
 export function errorMessage(error: unknown): string {

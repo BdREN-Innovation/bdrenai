@@ -1,6 +1,7 @@
 "use client";
 import React, { useEffect, useRef, useState } from "react";
 import {
+  ADMIN_CONSOLE_URL,
   AccountContextItem,
   BillingSummary,
   MyProfile,
@@ -244,7 +245,7 @@ function AccessSection({ user }: { user: MyProfile }) {
         </ul>
       )}
       {user.is_superadmin && (
-        <a href="/admin/" className="btn-outline mt-5">
+        <a href={ADMIN_CONSOLE_URL} className="btn-outline mt-5">
           Open admin console
         </a>
       )}

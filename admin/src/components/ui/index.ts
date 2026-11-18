@@ -1,6 +1,7 @@
 export * from './Button';
 export * from './Card';
 export * from './Chip';
+export * from './Choice';
 export * from './Combobox';
 export * from './ConfirmDialog';
 export * from './Dialog';

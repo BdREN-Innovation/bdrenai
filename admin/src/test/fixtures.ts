@@ -88,3 +88,167 @@ export const user: t.UserListItem = {
   ],
   is_superadmin: false,
 };
+
+const feature = (id: string, key: string, name: string, unit: string, in_use = false): t.Feature => ({
+  id,
+  key,
+  name,
+  unit,
+  description: '',
+  quota_policy: 'personal_then_org',
+  status: 'active',
+  in_use,
+});
+
+export const configApps: t.ConfigApp[] = [
+  {
+    id: 'p-1',
+    slug: 'synapse',
+    name: 'Synapse',
+    description: 'AI chat for institutions.',
+    status: 'active',
+    sort_order: 1,
+    features: [feature('f-chat', 'chat_messages', 'Chat messages', 'messages', true), feature('f-ocr', 'ocr_pages', 'OCR pages', 'pages')],
+    packages: { single: 1, bundle: 1 },
+  },
+  {
+    id: 'p-2',
+    slug: 'mindspear',
+    name: 'Mindspear',
+    description: 'Quizzes and live polls.',
+    status: 'active',
+    sort_order: 2,
+    features: [feature('f-quiz', 'quizzes', 'Quizzes', 'quizzes')],
+    packages: { single: 1, bundle: 1 },
+  },
+  {
+    id: 'p-3',
+    slug: 'mail-wizard',
+    name: 'AI Mail Wizard',
+    description: '',
+    status: 'active',
+    sort_order: 3,
+    features: [feature('f-mail', 'drafts', 'Email drafts', 'drafts')],
+    packages: { single: 0, bundle: 1 },
+  },
+  {
+    id: 'p-4',
+    slug: 'quigen',
+    name: 'QuiGen',
+    description: '',
+    status: 'active',
+    sort_order: 4,
+    features: [],
+    packages: { single: 0, bundle: 1 },
+  },
+];
+
+const appRef = (slug: string) => {
+  const app = configApps.find((item) => item.slug === slug);
+  return { slug, name: app?.name ?? slug };
+};
+
+export const bundleRow: t.PackageRow = {
+  id: 'pkg-all',
+  kind: 'bundle',
+  name: 'BdREN AI Suite',
+  slug: 'suite',
+  status: 'active',
+  audience: 'Universities that want every app',
+  is_public: true,
+  highlight: true,
+  sort_order: 0,
+  apps: configApps.map((app) => appRef(app.slug)),
+  price: '4500.00',
+  currency: 'BDT',
+  billing_interval: 'monthly',
+  price_unit: 'per_institution',
+  trial_days: 14,
+  seat_limit: null,
+  current_version: 1,
+  subscribers: 3,
+  updated_at: '2026-11-10T00:00:00Z',
+};
+
+export const synapseRow: t.PackageRow = {
+  id: 'pkg-syn',
+  kind: 'single',
+  name: 'Synapse Standard',
+  slug: 'standard',
+  status: 'active',
+  audience: '',
+  is_public: false,
+  highlight: false,
+  sort_order: 1,
+  apps: [appRef('synapse')],
+  price: '1500.00',
+  currency: 'BDT',
+  billing_interval: 'monthly',
+  price_unit: 'per_seat',
+  trial_days: 0,
+  seat_limit: 100,
+  current_version: 2,
+  subscribers: 12,
+  updated_at: '2026-11-12T00:00:00Z',
+};
+
+export const mindspearRow: t.PackageRow = {
+  ...synapseRow,
+  id: 'pkg-ms',
+  name: 'Mindspear Free',
+  slug: 'free',
+  apps: [appRef('mindspear')],
+  price: '0.00',
+  billing_interval: 'free',
+  current_version: 1,
+  subscribers: 0,
+};
+
+const limit = (featureId: string, app: string, limit_value: number): t.PackageLimit => {
+  const owner = configApps.find((item) => item.slug === app);
+  const found = owner?.features.find((item) => item.id === featureId);
+  return {
+    feature: { id: featureId, key: found?.key ?? featureId, name: found?.name ?? featureId, unit: found?.unit ?? '', app: appRef(app) },
+    limit_value,
+    limit_period: 'monthly',
+    on_limit: 'block',
+  };
+};
+
+export const synapseDetail: t.PackageDetail = {
+  ...synapseRow,
+  description: 'Chat and OCR for staff.',
+  limits: [limit('f-chat', 'synapse', 2000)],
+  versions: [
+    {
+      version: 2,
+      created_at: '2026-11-12T00:00:00Z',
+      created_by: actor,
+      change_reason: 'More messages for staff',
+      migration_policy: 'on_renewal',
+      price: '1500.00',
+      billing_interval: 'monthly',
+      price_unit: 'per_seat',
+      trial_days: 0,
+      seat_limit: 100,
+      apps: [appRef('synapse')],
+      limits: [limit('f-chat', 'synapse', 2000)],
+      subscribers: 10,
+    },
+    {
+      version: 1,
+      created_at: '2026-10-01T00:00:00Z',
+      created_by: null,
+      change_reason: '',
+      migration_policy: 'new_only',
+      price: '1200.00',
+      billing_interval: 'monthly',
+      price_unit: 'per_seat',
+      trial_days: 0,
+      seat_limit: 100,
+      apps: [appRef('synapse')],
+      limits: [limit('f-chat', 'synapse', 1000)],
+      subscribers: 2,
+    },
+  ],
+};

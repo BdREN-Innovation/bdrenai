@@ -1,10 +1,12 @@
 import {
+  Blocks,
   Building2,
   ChartColumn,
   CircleHelp,
   CreditCard,
   LayoutDashboard,
   Mail,
+  Package,
   Repeat,
   ScrollText,
   Settings2,
@@ -12,6 +14,7 @@ import {
   Users,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import type { ConfigurationTab } from '@/pages/configuration/tabs';
 
 export type NavPath =
   | '/'
@@ -65,7 +68,7 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     title: 'Platform',
     items: [
-      { label: 'Configuration', path: '/configuration', icon: Settings2, soon: true, keywords: ['packages', 'apps', 'settings'] },
+      { label: 'Configuration', path: '/configuration', icon: Settings2, keywords: ['packages', 'apps', 'settings'] },
       { label: 'Admins & roles', path: '/admins', icon: ShieldCheck, keywords: ['superadmins', 'roles'] },
       { label: 'Audit log', path: '/audit', icon: ScrollText, keywords: ['history', 'activity'] },
     ],
@@ -77,6 +80,19 @@ export const NAV_SECTIONS: NavSection[] = [
 ];
 
 export const NAV_ITEMS: NavItem[] = NAV_SECTIONS.flatMap((section) => section.items);
+
+export interface ConfigurationLink {
+  label: string;
+  tab: ConfigurationTab;
+  icon: LucideIcon;
+  keywords: string[];
+}
+
+/** Tabs of Configuration that the command menu lists as pages of their own. */
+export const CONFIGURATION_PAGES: ConfigurationLink[] = [
+  { label: 'Packages', tab: 'packages', icon: Package, keywords: ['configuration', 'pricing', 'bundles', 'plans'] },
+  { label: 'Apps & features', tab: 'apps', icon: Blocks, keywords: ['configuration', 'products', 'limits', 'quota'] },
+];
 
 export function isActivePath(itemPath: string, currentPath: string): boolean {
   if (itemPath === '/') return currentPath === '/';

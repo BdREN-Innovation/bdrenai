@@ -56,6 +56,10 @@ function Header({ title, description }: Pick<BaseProps, 'title' | 'description'>
   );
 }
 
+export type DialogSize = 'md' | 'lg' | 'xl';
+
+const DIALOG_WIDTH: Record<DialogSize, string> = { md: 'max-w-lg', lg: 'max-w-2xl', xl: 'max-w-4xl' };
+
 export function Dialog({
   open,
   onOpenChange,
@@ -65,7 +69,7 @@ export function Dialog({
   footer,
   onSubmit,
   size = 'md',
-}: BaseProps & { size?: 'md' | 'lg' }) {
+}: BaseProps & { size?: DialogSize }) {
   return (
     <RadixDialog.Root open={open} onOpenChange={onOpenChange}>
       <RadixDialog.Portal>
@@ -73,7 +77,7 @@ export function Dialog({
         <RadixDialog.Content
           className={cn(
             'fixed top-1/2 left-1/2 z-60 flex max-h-[calc(100vh-48px)] w-[calc(100vw-32px)] -translate-x-1/2 -translate-y-1/2 animate-dialog-in flex-col rounded-xl border border-stroke bg-surface shadow-modal',
-            size === 'lg' ? 'max-w-2xl' : 'max-w-lg',
+            DIALOG_WIDTH[size],
           )}
         >
           <Header title={title} description={description} />

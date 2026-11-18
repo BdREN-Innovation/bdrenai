@@ -19,6 +19,9 @@ export const keys = {
   invitations: (params: t.InvitationListParams) => ['invitations', params] as const,
   admins: ['admins'] as const,
   audit: (params: t.AuditListParams) => ['audit', params] as const,
+  configApps: ['config', 'apps'] as const,
+  packages: (params: t.PackageListParams) => ['config', 'packages', params] as const,
+  package: (id: string) => ['config', 'package', id] as const,
 };
 
 /** Prefixes refreshed after any write: lists, counts and history all move together. */
@@ -29,6 +32,7 @@ const AFTER_WRITE: QueryKey[] = [
   ['invitations'],
   ['admins'],
   ['audit'],
+  ['config'],
 ];
 
 function useWrite<TBody, TResult>(fn: (body: TBody) => Promise<TResult>) {
@@ -153,6 +157,37 @@ export function useAudit(params: t.AuditListParams) {
   });
 }
 
+export function useConfigApps(enabled = true) {
+  return useQuery({
+    queryKey: keys.configApps,
+    queryFn: ({ signal }) => superadmin.get<t.Results<t.ConfigApp>>('config/apps/', undefined, signal),
+    enabled,
+  });
+}
+
+export function usePackages(params: t.PackageListParams) {
+  return useQuery({
+    queryKey: keys.packages(params),
+    queryFn: ({ signal }) =>
+      superadmin.get<t.Page<t.PackageRow>>('config/packages/', { ...params }, signal),
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function usePackage(id: string) {
+  return useQuery({
+    queryKey: keys.package(id),
+    queryFn: ({ signal }) => superadmin.get<t.PackageDetail>(`config/packages/${enc(id)}/`, undefined, signal),
+  });
+}
+
+/** Dry run of a new version: no writes, so nothing is invalidated. */
+export const usePackagePreview = (id: string) =>
+  useMutation({
+    mutationFn: (body: t.PackageTermsBody) =>
+      superadmin.post<t.PackagePreview>(`config/packages/${enc(id)}/preview/`, body),
+  });
+
 export const useCreateInstitution = () =>
   useWrite((body: t.CreateInstitutionBody) =>
     superadmin.post<t.CreateInstitutionResponse>('institutions/', body),
@@ -219,3 +254,36 @@ export const useAddAdmin = () =>
 
 export const useRemoveAdmin = () =>
   useWrite((userId: string) => superadmin.delete<void>(`admins/${enc(userId)}/`));
+
+export const useUpdateApp = () =>
+  useWrite(({ slug, body }: { slug: string; body: t.UpdateAppBody }) =>
+    superadmin.patch<t.ConfigApp>(`config/apps/${enc(slug)}/`, body),
+  );
+
+export const useCreateFeature = () =>
+  useWrite(({ app, body }: { app: string; body: t.CreateFeatureBody }) =>
+    superadmin.post<t.Feature>(`config/apps/${enc(app)}/features/`, body),
+  );
+
+export const useUpdateFeature = () =>
+  useWrite(({ id, body }: { id: string; body: t.UpdateFeatureBody }) =>
+    superadmin.patch<t.Feature>(`config/features/${enc(id)}/`, body),
+  );
+
+export const useCreatePackage = () =>
+  useWrite((body: t.CreatePackageBody) => superadmin.post<t.PackageDetail>('config/packages/', body));
+
+export const useUpdatePackage = (id: string) =>
+  useWrite((body: t.UpdatePackageBody) => superadmin.patch<t.PackageDetail>(`config/packages/${enc(id)}/`, body));
+
+export const usePublishVersion = (id: string) =>
+  useWrite((body: t.NewVersionBody) =>
+    superadmin.post<t.NewVersionResponse>(`config/packages/${enc(id)}/versions/`, body),
+  );
+
+export type PackageStatusAction = 'archive' | 'restore';
+
+export const usePackageStatus = (id: string) =>
+  useWrite(({ action, reason }: { action: PackageStatusAction; reason: string }) =>
+    superadmin.post<t.PackageDetail>(`config/packages/${enc(id)}/${action}/`, { reason }),
+  );

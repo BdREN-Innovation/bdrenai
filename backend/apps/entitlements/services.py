@@ -20,6 +20,9 @@ def current_period_bounds(period: str, now=None):
     if period == PackageLimit.Period.DAILY:
         start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         return start, start + timedelta(days=1)
+    if period == PackageLimit.Period.WEEKLY:
+        start = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+        return start, start + timedelta(days=7)
     if period == PackageLimit.Period.YEARLY:
         start = datetime(now.year, 1, 1, tzinfo=dt_tz.utc)
         end = datetime(now.year + 1, 1, 1, tzinfo=dt_tz.utc)

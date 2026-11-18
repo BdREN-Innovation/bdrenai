@@ -377,3 +377,191 @@ export interface AuditListParams extends ListParams {
   from?: string;
   to?: string;
 }
+
+export type AppStatus = 'active' | 'inactive' | 'archived';
+export type FeatureStatus = 'active' | 'inactive';
+export type QuotaPolicy = 'personal_only' | 'organization_only' | 'personal_then_org' | 'org_then_personal' | 'both';
+export type PackageKind = 'single' | 'bundle';
+export type PackageStatus = 'active' | 'inactive' | 'archived';
+export type BillingInterval = 'monthly' | 'yearly' | 'free';
+export type PriceUnit = 'per_seat' | 'per_institution' | 'flat';
+export type LimitPeriod = 'daily' | 'weekly' | 'monthly' | 'yearly' | 'lifetime';
+export type OnLimit = 'block' | 'warn';
+export type MigrationPolicy = 'new_only' | 'immediate' | 'on_renewal' | 'selected_only';
+
+export interface AppRef {
+  slug: string;
+  name: string;
+}
+
+export interface Feature {
+  id: UUID;
+  key: string;
+  name: string;
+  unit: string;
+  description: string;
+  quota_policy: QuotaPolicy;
+  status: FeatureStatus;
+  in_use: boolean;
+}
+
+export interface ConfigApp extends AppRef {
+  id: UUID;
+  description: string;
+  status: AppStatus;
+  sort_order: number;
+  features: Feature[];
+  packages: { single: number; bundle: number };
+}
+
+export interface UpdateAppBody {
+  name?: string;
+  description?: string;
+  status?: AppStatus;
+  sort_order?: number;
+}
+
+export interface CreateFeatureBody {
+  key: string;
+  name: string;
+  unit: string;
+  description?: string;
+  quota_policy?: QuotaPolicy;
+}
+
+export interface UpdateFeatureBody {
+  key?: string;
+  name?: string;
+  unit?: string;
+  description?: string;
+  quota_policy?: QuotaPolicy;
+  status?: FeatureStatus;
+}
+
+/** The commercial terms a package version snapshots; changing any of them needs a new version. */
+export interface PackageTerms {
+  price: string;
+  currency: string;
+  billing_interval: BillingInterval;
+  price_unit: PriceUnit;
+  trial_days: number;
+  seat_limit: number | null;
+}
+
+export interface PackagePresentation {
+  name: string;
+  description: string;
+  audience: string;
+  is_public: boolean;
+  highlight: boolean;
+  sort_order: number;
+}
+
+export interface PackageRow extends PackageTerms {
+  id: UUID;
+  kind: PackageKind;
+  name: string;
+  slug: string;
+  status: PackageStatus;
+  audience: string;
+  is_public: boolean;
+  highlight: boolean;
+  sort_order: number;
+  apps: AppRef[];
+  current_version: number;
+  subscribers: number;
+  updated_at: ISODate;
+}
+
+export interface LimitTerms {
+  limit_value: number;
+  limit_period: LimitPeriod;
+  on_limit: OnLimit;
+}
+
+export interface LimitFeature {
+  id: UUID;
+  key: string;
+  name: string;
+  unit: string;
+  app: AppRef;
+}
+
+export interface PackageLimit extends LimitTerms {
+  feature: LimitFeature;
+}
+
+export interface LimitInput extends LimitTerms {
+  feature_id: UUID;
+}
+
+export interface PackageVersion extends Omit<PackageTerms, 'currency'> {
+  version: number;
+  created_at: ISODate;
+  created_by: PersonRef | null;
+  change_reason: string;
+  migration_policy: MigrationPolicy;
+  apps: AppRef[];
+  limits: PackageLimit[];
+  subscribers: number;
+}
+
+export interface PackageDetail extends PackageRow {
+  description: string;
+  limits: PackageLimit[];
+  versions: PackageVersion[];
+}
+
+/** Commercial part of a package draft: what preview and new-version bodies carry. */
+export interface PackageTermsBody extends PackageTerms {
+  /** Bundles only: the slugs of the included apps. */
+  apps?: string[];
+  limits: LimitInput[];
+}
+
+export interface CreatePackageBody extends PackageTermsBody, PackagePresentation {
+  kind: PackageKind;
+  slug: string;
+  /** Singles only: the slug of the package's app. */
+  app?: string;
+}
+
+export type UpdatePackageBody = Partial<PackagePresentation>;
+
+export type ScalarField = 'price' | 'currency' | 'billing_interval' | 'price_unit' | 'trial_days' | 'seat_limit';
+
+export type PackageChange =
+  | { field: ScalarField; from: string | number | null; to: string | number | null }
+  | { field: 'limit'; feature: LimitFeature; from: LimitTerms | null; to: LimitTerms | null }
+  | { field: 'apps'; added: AppRef[]; removed: AppRef[] };
+
+/** The holder of a live subscription: an institution, or (slug null) a personal account named by its owner. */
+export interface AffectedInstitution {
+  slug: string | null;
+  name: string;
+  subscription_id: UUID;
+  status: 'active' | 'trial';
+}
+
+export interface PackagePreview {
+  changes: PackageChange[];
+  affected: { subscriptions: number; institutions: AffectedInstitution[] };
+}
+
+export interface NewVersionBody extends PackageTermsBody {
+  change_reason: string;
+  migration_policy: MigrationPolicy;
+  selected_subscriptions?: UUID[];
+}
+
+export interface NewVersionResponse {
+  package: PackageDetail;
+  migrated: number;
+  scheduled: number;
+}
+
+export interface PackageListParams extends ListParams {
+  kind?: PackageKind;
+  app?: string;
+  status?: PackageStatus;
+}

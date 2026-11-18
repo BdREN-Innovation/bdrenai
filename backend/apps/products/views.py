@@ -1,4 +1,7 @@
+from collections import defaultdict
+
 from django.core.exceptions import PermissionDenied
+from django.db.models import Prefetch
 from django.http import JsonResponse
 from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView
@@ -6,62 +9,88 @@ from rest_framework.views import APIView
 from apps.accounts.services import resolve_authorized_account
 from apps.billing.models import PaymentRecord
 from apps.billing.services import record_manual_payment
+from apps.packages import services as package_services
 from apps.packages.models import Package, PackageVersion
 from apps.subscriptions.services import create_subscription
 
-from .models import Product
+from .models import Feature, Product
+
+
+def _catalog_package(pkg):
+    """A package as the public catalog shows it (`services.public_packages()`)."""
+    ver = pkg.current_versions[0] if pkg.current_versions else None
+    limits = [
+        {
+            "feature_key": lim.feature.key,
+            "feature_name": lim.feature.name,
+            "unit": lim.feature.unit,
+            "limit_value": lim.limit_value,
+            "limit_period": lim.limit_period,
+        }
+        for lim in (ver.limits.all() if ver else [])
+    ]
+    return {
+        "id": str(pkg.id),
+        "name": pkg.name,
+        "slug": pkg.slug,
+        "description": pkg.description,
+        "price": str(pkg.price),
+        "currency": pkg.currency,
+        "billing_interval": pkg.billing_interval,
+        "trial_days": pkg.trial_days,
+        "latest_version": ver.version if ver else None,
+        "package_version_id": str(ver.id) if ver else None,
+        "limits": limits,
+    }
+
+
+def _bundle_apps(pkg):
+    """The active apps of a bundle's current version (`services.public_packages()` prefetches only those)."""
+    if not pkg.current_versions:
+        return []
+    return [{"slug": p.slug, "name": p.name} for p in pkg.current_versions[0].products.all()]
 
 
 class PublicProductCatalogView(APIView):
-    """GET /api/v1/catalog/products/ — Public catalog of active BDREN products, features, and packages."""
+    """GET /api/v1/catalog/products/ — Public catalog of active BDREN products with their features and public,
+    unarchived single packages, plus the combined packages (`bundles`, each with its active `apps`; a bundle
+    left with fewer than two active apps is not offered)."""
 
     authentication_classes = []
     permission_classes = [AllowAny]
 
     def get(self, request):
-        products = Product.objects.filter(status=Product.Status.ACTIVE).prefetch_related(
-            "features", "packages__versions__limits__feature"
-        ).order_by("name")
-        out = []
-        for p in products:
-            pkgs = []
-            for pkg in p.packages.filter(status=Package.Status.ACTIVE).order_by("price"):
-                ver = pkg.versions.filter(status=PackageVersion.Status.ACTIVE).order_by("-version").first()
-                limits = []
-                if ver:
-                    for lim in ver.limits.all():
-                        limits.append({
-                            "feature_key": lim.feature.key,
-                            "feature_name": lim.feature.name,
-                            "unit": lim.feature.unit,
-                            "limit_value": lim.limit_value,
-                            "limit_period": lim.limit_period,
-                        })
-                pkgs.append({
-                    "id": str(pkg.id),
-                    "name": pkg.name,
-                    "slug": pkg.slug,
-                    "description": pkg.description,
-                    "price": str(pkg.price),
-                    "currency": pkg.currency,
-                    "billing_interval": pkg.billing_interval,
-                    "trial_days": pkg.trial_days,
-                    "latest_version": ver.version if ver else None,
-                    "package_version_id": str(ver.id) if ver else None,
-                    "limits": limits,
-                })
-            out.append({
+        active_features = Prefetch("features", queryset=Feature.objects.filter(status=Feature.Status.ACTIVE))
+        products = (
+            Product.objects.filter(status=Product.Status.ACTIVE)
+            .prefetch_related(active_features)
+            .order_by("sort_order", "name")
+        )
+        offered = list(package_services.public_packages())
+        singles = defaultdict(list)
+        for pkg in offered:
+            if pkg.kind == Package.Kind.SINGLE:
+                singles[pkg.product_id].append(_catalog_package(pkg))
+        bundles = [
+            {**_catalog_package(pkg), "apps": apps}
+            for pkg in offered
+            if pkg.kind == Package.Kind.BUNDLE and len(apps := _bundle_apps(pkg)) >= 2
+        ]
+        out = [
+            {
                 "id": str(p.id),
                 "name": p.name,
                 "slug": p.slug,
                 "description": p.description,
                 "features": [
                     {"key": f.key, "name": f.name, "unit": f.unit, "description": f.description}
-                    for f in p.features.filter(status="active")
+                    for f in p.features.all()
                 ],
-                "packages": pkgs,
-            })
-        return JsonResponse({"products": out})
+                "packages": singles[p.id],
+            }
+            for p in products
+        ]
+        return JsonResponse({"products": out, "bundles": bundles})
 
 
 class SubscribePackageView(APIView):
@@ -81,7 +110,13 @@ class SubscribePackageView(APIView):
         except PermissionDenied:
             return JsonResponse({"error": "forbidden_account"}, status=403)
 
-        pkg = Package.objects.filter(id=pkg_id, status=Package.Status.ACTIVE).select_related("product").first()
+        pkg = (
+            Package.objects.filter(
+                id=pkg_id, status=Package.Status.ACTIVE, kind=Package.Kind.SINGLE, product__status=Product.Status.ACTIVE
+            )
+            .select_related("product")
+            .first()
+        )
         if pkg is None:
             return JsonResponse({"error": "package_not_found"}, status=404)
 

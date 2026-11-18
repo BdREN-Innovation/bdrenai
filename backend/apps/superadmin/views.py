@@ -12,6 +12,8 @@ from apps.invitations.shapes import paginated, serialize_invitation, serialize_m
 from apps.invitations.throttles import SendsInvitations
 from apps.organizations import directory
 from apps.organizations.models import Membership, Organization
+from apps.packages import services as packages
+from apps.packages.models import Package
 
 from . import lists, services, shapes
 from .permissions import IsSuperadmin
@@ -19,6 +21,8 @@ from .permissions import IsSuperadmin
 SOURCE = services.SOURCE
 INVITATION_STATUSES = frozenset(Invitation.Status.values)
 MEMBERSHIP_ROLES = frozenset(Membership.Role.values)
+PACKAGE_KINDS = frozenset(Package.Kind.values)
+PACKAGE_STATUSES = frozenset(Package.Status.values)
 
 
 def payload(request):
@@ -342,3 +346,87 @@ class AuditView(SuperadminView):
             until=lists.moment(request, "to", end_of_day=True),
         )
         return JsonResponse(paginated(qs, request.GET, shapes.audit_entry))
+
+
+# ---------------------------------------------------------------- configuration: apps and features
+
+class ConfigAppsView(SuperadminView):
+    def get(self, request):
+        return JsonResponse({"results": [shapes.app(product) for product in packages.apps()]})
+
+
+class ConfigAppView(SuperadminView):
+    def patch(self, request, slug):
+        packages.update_app(slug, payload(request), actor=request.user, ip_address=client_ip(request))
+        return JsonResponse(shapes.app(packages.load_app(slug)))
+
+
+class ConfigAppFeaturesView(SuperadminView):
+    def post(self, request, slug):
+        feature = packages.create_feature(slug, payload(request), actor=request.user, ip_address=client_ip(request))
+        return JsonResponse(shapes.feature(feature), status=201)
+
+
+class ConfigFeatureView(SuperadminView):
+    def patch(self, request, pk):
+        feature = packages.update_feature(pk, payload(request), actor=request.user, ip_address=client_ip(request))
+        return JsonResponse(shapes.feature(feature))
+
+
+# ---------------------------------------------------------------- configuration: packages
+
+def _package_detail(pk):
+    return shapes.package_detail(packages.load_package(pk))
+
+
+class ConfigPackagesView(SuperadminView):
+    def get(self, request):
+        qs = packages.package_list(
+            kind=lists.choice(request, "kind", PACKAGE_KINDS),
+            app=lists.text(request, "app") or None,
+            status=lists.choice(request, "status", PACKAGE_STATUSES),
+            q=lists.text(request),
+        )
+        return JsonResponse(paginated(qs, request.GET, shapes.package_list_row))
+
+    def post(self, request):
+        pkg = packages.create_package(payload(request), actor=request.user, ip_address=client_ip(request))
+        return JsonResponse(_package_detail(pkg.pk), status=201)
+
+
+class ConfigPackageView(SuperadminView):
+    def get(self, request, pk):
+        return JsonResponse(_package_detail(pk))
+
+    def patch(self, request, pk):
+        packages.update_presentation(pk, payload(request), actor=request.user, ip_address=client_ip(request))
+        return JsonResponse(_package_detail(pk))
+
+
+class ConfigPackagePreviewView(SuperadminView):
+    def post(self, request, pk):
+        changes, subscriptions = packages.preview_version(pk, payload(request))
+        return JsonResponse({
+            "changes": [shapes.package_change(change) for change in changes],
+            "affected": shapes.affected(subscriptions),
+        })
+
+
+class ConfigPackageVersionsView(SuperadminView):
+    def post(self, request, pk):
+        stats = packages.publish_version(pk, payload(request), actor=request.user, ip_address=client_ip(request))
+        return JsonResponse({"package": _package_detail(pk), **stats}, status=201)
+
+
+class ConfigPackageArchiveView(SuperadminView):
+    """POST config/packages/<id>/archive|restore/; `archived` comes from the URL."""
+
+    archived = None
+
+    def post(self, request, pk):
+        data = payload(request)
+        packages.set_archived(
+            pk, self.archived, reason=services.clean_reason(data.get("reason"), required=True),
+            actor=request.user, ip_address=client_ip(request),
+        )
+        return JsonResponse(_package_detail(pk))

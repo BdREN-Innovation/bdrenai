@@ -143,6 +143,19 @@ describe("BdREN AI website", () => {
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
 
+  it("adds the admin panel to the profile menu for superadmins only", async () => {
+    mockSignedInApi((url) =>
+      url.endsWith("/api/v1/auth/profile/")
+        ? new Response(JSON.stringify({ ...PROFILE, is_superadmin: true }), { status: 200 })
+        : undefined
+    );
+    render(<Header />);
+    fireEvent.click(await screen.findByRole("button", { name: "Profile menu for Alice Rahman" }));
+    const items = screen.getAllByRole("menuitem");
+    expect(items.map((i) => i.textContent?.trim())).toEqual(["My profile", "Admin panel", "Log out"]);
+    expect(items[1]).toHaveAttribute("href", "/admin/");
+  });
+
   it("leads with the Suite and switches to single-product packages", () => {
     render(<Pricing />);
     expect(screen.getByRole("button", { name: /BdREN AI Suite/ })).toHaveAttribute("aria-pressed", "true");
