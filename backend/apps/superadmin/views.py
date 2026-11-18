@@ -3,6 +3,7 @@ from django.http import HttpResponse, JsonResponse
 from rest_framework.views import APIView
 
 from apps.administration.permissions import user_platform_roles
+from apps.audit.models import AuditLog
 from apps.audit.services import client_ip
 from apps.identities.models import User
 from apps.invitations import services as invitations
@@ -340,12 +341,18 @@ class AuditView(SuperadminView):
             q=lists.text(request),
             action=lists.text(request, "action") or None,
             actor=lists.uuid_value(request, "actor"),
+            role=lists.choice(request, "role", AuditLog.ActorRole.values),
             target_type=lists.text(request, "target_type") or None,
             target_id=lists.text(request, "target_id") or None,
             since=lists.moment(request, "from"),
             until=lists.moment(request, "to", end_of_day=True),
         )
         return JsonResponse(paginated(qs, request.GET, shapes.audit_entry))
+
+
+class AuditFiltersView(SuperadminView):
+    def get(self, request):
+        return JsonResponse(services.audit_filter_options())
 
 
 # ---------------------------------------------------------------- configuration: apps and features

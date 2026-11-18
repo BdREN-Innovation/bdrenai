@@ -1,10 +1,23 @@
 import { useState } from 'react';
-import type { AuditEntry } from '@/api/types';
-import { Drawer, Table, TableMessage, Td, Th, Tr } from '@/components/ui';
+import type { AuditEntry, AuditRole } from '@/api/types';
+import type { Tone } from '@/components/ui';
+import { Chip, Drawer, Table, TableMessage, Td, Th, Tr } from '@/components/ui';
 import { formatDateTime, formatRelative, humanize } from '@/lib/format';
 
 function actorLabel(entry: AuditEntry): string {
   return entry.actor ? entry.actor.name || entry.actor.email : 'System';
+}
+
+export const AUDIT_ROLE: Record<AuditRole, { label: string; tone: Tone }> = {
+  superadmin: { label: 'Superadmin', tone: 'brand' },
+  institution_admin: { label: 'Institution admin', tone: 'info' },
+  user: { label: 'User', tone: 'neutral' },
+  system: { label: 'System', tone: 'neutral' },
+};
+
+function RoleChip({ role }: { role: AuditRole }) {
+  const { label, tone } = AUDIT_ROLE[role];
+  return <Chip tone={tone}>{label}</Chip>;
 }
 
 function reasonOf(entry: AuditEntry): string | null {
@@ -34,7 +47,7 @@ export function AuditTable({ entries, loading, emptyText = 'No activity recorded
           <tr>
             <Th>When</Th>
             <Th>Action</Th>
-            <Th>Actor</Th>
+            <Th>Role</Th>
             <Th>Target</Th>
             <Th>Reason</Th>
           </tr>
@@ -44,18 +57,17 @@ export function AuditTable({ entries, loading, emptyText = 'No activity recorded
             <TableMessage colSpan={5}>{loading ? 'Loading…' : emptyText}</TableMessage>
           ) : (
             entries.map((entry) => (
-              <Tr key={entry.id} onOpen={() => setOpen(entry)} openLabel={`${actionLabel(entry.action)} by ${actorLabel(entry)}, open details`}>
+              <Tr key={entry.id} onOpen={() => setOpen(entry)} openLabel={`${actionLabel(entry.action)} by ${AUDIT_ROLE[entry.actor_role].label}, open details`}>
                 <Td className="tabular whitespace-nowrap" title={formatDateTime(entry.created_at)}>
                   {formatRelative(entry.created_at)}
                 </Td>
                 <Td>
                   <code className="font-mono text-xs">{entry.action}</code>
                 </Td>
-                <Td>{actorLabel(entry)}</Td>
                 <Td>
-                  <span className="text-ink-muted">{entry.target_type}</span>{' '}
-                  <span className="font-mono text-xs">{entry.target_id.slice(0, 8)}</span>
+                  <RoleChip role={entry.actor_role} />
                 </Td>
+                <Td className="text-ink-muted">{humanize(entry.target_type)}</Td>
                 <Td className="max-w-64 truncate text-ink-muted">{reasonOf(entry) ?? '—'}</Td>
               </Tr>
             ))
@@ -80,7 +92,11 @@ export function AuditDrawer({ entry, onClose }: { entry: AuditEntry | null; onCl
           <dl className="grid grid-cols-[8rem_1fr] gap-x-3 gap-y-2 text-[13px]">
             <dt className="text-ink-muted">Action</dt>
             <dd className="font-mono text-xs break-all">{entry.action}</dd>
-            <dt className="text-ink-muted">Actor</dt>
+            <dt className="text-ink-muted">Role</dt>
+            <dd>
+              <RoleChip role={entry.actor_role} />
+            </dd>
+            <dt className="text-ink-muted">Done by</dt>
             <dd>{entry.actor ? `${entry.actor.name || '—'} (${entry.actor.email})` : 'System'}</dd>
             <dt className="text-ink-muted">Target type</dt>
             <dd>{entry.target_type}</dd>

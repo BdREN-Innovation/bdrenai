@@ -267,7 +267,15 @@ else 404/409 `ambiguous_email`; unverified accounts never match, use the user id
 ```json
 {"id","action","target_type","target_id","actor": {"id","name","email"}|null,"metadata": {},"ip_address","created_at"}
 ```
-`GET audit/?q=&action=&actor=<user_id>&target_type=&target_id=&from=&to=&page=`
+`GET audit/?q=&action=&role=&actor=<user_id>&target_type=&target_id=&from=&to=&page=`
+
+Each entry also carries `"actor_role"`: `superadmin` / `institution_admin` / `user` / `system`, fixed when the
+entry is written (no actor → system; platform superadmin → superadmin; acting from the portal → institution admin;
+else user). Existing entries were backfilled from the actor's current role. `role=` filters on it.
+
+`GET audit/filters/` → `{"actions": [...], "target_types": [...], "roles": [{"value","label"}]}`: the actions and
+target types that occur in the log, for the audit page's fixed dropdowns. The page filters by action, target type,
+role and date only; `actor` and `target_id` stay available to the API (user and institution pages use them).
 
 ## Portal API (institution admins) — `/api/v1/portal/`
 

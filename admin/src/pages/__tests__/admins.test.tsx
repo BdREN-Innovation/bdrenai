@@ -43,13 +43,41 @@ describe('AdminsPage', () => {
 });
 
 describe('AuditPage', () => {
-  it('sends filters to the server and shows metadata in the drawer', async () => {
+  it('filters by fixed action, target type and role lists and shows roles instead of people', async () => {
     const user = userEvent.setup();
-    const { api } = renderApp('/audit', { [`GET ${API}/audit/`]: page([auditEntry]) });
-    await user.type(await screen.findByLabelText('Action'), 'organization.suspend');
-    await waitFor(() => expect(api.find('GET', `${API}/audit/`).at(-1)?.query.get('action')).toBe('organization.suspend'));
-    await user.click(await screen.findByRole('row', { name: /Organization suspend/ }));
+    const { api } = renderApp('/audit', {
+      [`GET ${API}/audit/`]: page([auditEntry]),
+      [`GET ${API}/audit/filters/`]: {
+        actions: ['invitation.created', 'organization.suspend'],
+        target_types: ['Invitation', 'organization'],
+        roles: [
+          { value: 'superadmin', label: 'Superadmin' },
+          { value: 'institution_admin', label: 'Institution admin' },
+          { value: 'user', label: 'User' },
+          { value: 'system', label: 'System' },
+        ],
+      },
+    });
+    expect(screen.queryByLabelText('Target ID')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Actor user ID')).not.toBeInTheDocument();
+    const action = await screen.findByRole('combobox', { name: 'Action' });
+    await waitFor(() => expect(within(action).getByRole('option', { name: 'Organization suspend' })).toBeInTheDocument());
+    await user.selectOptions(action, 'organization.suspend');
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Target type' }), 'organization');
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Role' }), 'institution_admin');
+    await waitFor(() => {
+      const query = api.find('GET', `${API}/audit/`).at(-1)?.query;
+      expect([query?.get('action'), query?.get('target_type'), query?.get('role')]).toEqual([
+        'organization.suspend', 'organization', 'institution_admin',
+      ]);
+    });
+
+    expect(screen.getByRole('columnheader', { name: 'Role' })).toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'Actor' })).not.toBeInTheDocument();
+    const row = await screen.findByRole('row', { name: /Organization suspend by Superadmin/ });
+    await user.click(row);
     const drawer = await screen.findByRole('dialog', { name: 'Organization suspend' });
     expect(within(drawer).getByText(/"organization_id": "org-1"/)).toBeInTheDocument();
+    expect(within(drawer).getByText('Superadmin')).toBeInTheDocument();
   });
 });

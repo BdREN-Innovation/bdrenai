@@ -19,6 +19,7 @@ export const auditEntry: t.AuditEntry = {
   target_type: 'organization',
   target_id: '7d1c2a4e-0000-0000-0000-000000000001',
   actor,
+  actor_role: 'superadmin',
   metadata: { reason: 'Unpaid invoice', organization_id: 'org-1' },
   ip_address: '10.0.0.5',
   created_at: '2026-11-17T08:00:00Z',
