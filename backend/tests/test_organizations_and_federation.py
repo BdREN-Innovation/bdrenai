@@ -6,6 +6,7 @@ from django.db import IntegrityError
 from django.test import Client
 
 from apps.accounts.models import Account
+from apps.audit.models import AuditLog
 from apps.identities.models import ExternalIdentity, User
 from apps.organizations.models import InstitutionalIdentityProvider, Membership, Organization
 from apps.organizations.services import (
@@ -161,3 +162,25 @@ def test_explicit_verified_account_linking_and_conflict_rejection(idp):
     idp.token_response_claims = {"nonce": c2.session["oidc_link_flow"]["nonce"], "sub": "u-primary"}
     conflict = c2.get("/api/v1/auth/link/callback/", {"code": "c2", "state": st2})
     assert conflict.status_code == 409
+
+
+def test_institutional_sign_in_respects_the_seat_cap(idp):
+    """Signing in through the institution's IdP adds a seat, so it is seat-checked under the org lock."""
+    org = create_organization(name="BUET", slug="buet", zitadel_organization_id="z-buet-101", seat_cap=1)
+    sso = {"urn:zitadel:iam:org:id": "z-buet-101"}
+    assert login_with_claims(Client(), idp, sub="u-1", email="one@buet.ac.bd", **sso).status_code == 302
+    first = User.objects.get(zitadel_subject="u-1")
+    assert Membership.objects.get(user=first).status == Membership.Status.ACTIVE
+
+    assert login_with_claims(Client(), idp, sub="u-2", email="two@buet.ac.bd", **sso).status_code == 302
+    second = Membership.objects.get(user__zitadel_subject="u-2")
+    assert second.status == Membership.Status.PENDING  # waits as a sign-up request instead of taking an 11th seat
+
+    org.seat_cap = 2
+    org.save(update_fields=["seat_cap"])
+    assert login_with_claims(Client(), idp, sub="u-2", email="two@buet.ac.bd", **sso).status_code == 302
+    second.refresh_from_db()
+    assert second.status == Membership.Status.ACTIVE
+    assert Membership.objects.filter(organization=org, status=Membership.Status.ACTIVE).count() == 2
+    joined = AuditLog.objects.filter(action="membership.joined", metadata__source="institution_sign_in")
+    assert joined.count() == 2

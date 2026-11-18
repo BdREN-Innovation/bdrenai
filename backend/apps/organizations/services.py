@@ -7,11 +7,13 @@ from .models import InstitutionalIdentityProvider, Membership, Organization
 
 
 @transaction.atomic
-def create_organization(*, name, slug, zitadel_organization_id=None, owner_user=None):
+def create_organization(*, name, slug, zitadel_organization_id=None, owner_user=None, **details):
+    """`details` are further Organization fields (type, timezone, contact_email, sign_in_domains, seat_cap, ...)."""
     org = Organization.objects.create(
         name=name,
         slug=slug,
         zitadel_organization_id=zitadel_organization_id,
+        **details,
     )
     Account.objects.create(
         account_type=Account.Type.ORGANIZATION,

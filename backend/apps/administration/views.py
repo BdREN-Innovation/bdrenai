@@ -11,11 +11,7 @@ from apps.billing.services import verify_manual_payment
 from apps.entitlements.services import set_entitlement_override
 from apps.identities.models import User
 from apps.organizations.models import Membership, Organization
-from apps.organizations.services import (
-    add_or_update_membership,
-    create_organization,
-    register_institutional_idp,
-)
+from apps.organizations.services import create_organization, register_institutional_idp
 from apps.packages.models import Package, PackageVersion
 from apps.packages.services import (
     create_package_with_version,
@@ -151,17 +147,6 @@ class AdminOrganizationsView(APIView):
             )
             record_audit(actor=request.user, action="organization.created", target_type="Organization", target_id=str(org.id))
             return JsonResponse({"id": str(org.id), "account_id": str(org.account.id), "slug": org.slug}, status=201)
-        if action == "set_membership":
-            org = Organization.objects.get(id=request.data["organization_id"])
-            u = User.objects.get(id=request.data["user_id"])
-            m = add_or_update_membership(
-                user=u,
-                organization=org,
-                role=request.data.get("role", Membership.Role.MEMBER),
-                status=request.data.get("status", Membership.Status.ACTIVE),
-            )
-            record_audit(actor=request.user, action="membership.updated", target_type="Membership", target_id=str(m.id))
-            return JsonResponse({"membership_id": str(m.id), "role": m.role, "status": m.status})
         if action == "register_idp":
             org = Organization.objects.get(id=request.data["organization_id"])
             idp = register_institutional_idp(

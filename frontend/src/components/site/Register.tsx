@@ -41,14 +41,15 @@ function Progress({ step }: { step: Step }) {
   );
 }
 
-export function Register() {
+/** `initialEmail` and `next` come from an invitation link: the email is prefilled and sign-in returns to `next`. */
+export function Register({ initialEmail = "", next = "/" }: { initialEmail?: string; next?: string }) {
   const [step, setStep] = useState<Step>("details");
   const [institutions, setInstitutions] = useState<Institution[]>([]);
   const [enabled, setEnabled] = useState(true);
   const [form, setForm] = useState({
     first_name: "",
     last_name: "",
-    email: "",
+    email: initialEmail,
     institution: "",
     institution_other: "",
     password: "",
@@ -131,7 +132,7 @@ export function Register() {
         <p className="mt-3 leading-relaxed text-muted">
           Sign-up on this page isn&apos;t switched on yet. You can still create your BdREN account on the sign-in page.
         </p>
-        <a href={loginUrl("/")} className="btn-primary mt-7 min-h-[52px] w-full">
+        <a href={loginUrl(next)} className="btn-primary mt-7 min-h-[52px] w-full">
           Continue to BdREN sign-in
         </a>
       </div>
@@ -153,7 +154,7 @@ export function Register() {
             : "Your BdREN account is ready. Sign in to pick a plan and start using BdREN AI."}
         </p>
         <div className="mt-7 flex flex-wrap gap-3">
-          <a href={loginUrl("/", email)} className="btn-primary min-h-[52px]">
+          <a href={loginUrl(next, email)} className="btn-primary min-h-[52px]">
             Sign in
           </a>
           <a href="/pricing" className="btn-outline min-h-[52px]">

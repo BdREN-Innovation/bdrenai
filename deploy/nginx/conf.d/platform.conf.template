@@ -1,8 +1,15 @@
-# bdren.ai (landing + /admin + /api), admin.bdren.ai, and api.bdren.ai routing
+# bdren.ai (landing + /admin/ + /api), admin.bdren.ai, and api.bdren.ai routing
 upstream django_backend { server backend:8000;  keepalive 16; }
 upstream next_frontend  { server frontend:3000; keepalive 16; }
+upstream admin_spa      { server admin:80;      keepalive 16; }
 
-# Main BDREN domain: bdren.ai (landing at /, admin at /admin, API at /api/)
+# ":8080" when the browser used an explicit port (dev), "" otherwise, so cross-host redirects keep it.
+map $http_host $bdren_port_suffix {
+  default        "";
+  "~(?<bdren_port>:\d+)$" $bdren_port;
+}
+
+# Main BDREN domain: bdren.ai (website at /, superadmin SPA at /admin/, API at /api/)
 server {
   listen 80;
   server_name ${PLATFORM_DOMAIN};
@@ -16,8 +23,12 @@ server {
     include /etc/nginx/templates/proxy_params.inc;
   }
 
-  location /admin {
-    proxy_pass http://next_frontend;
+  location = /admin {
+    return 301 $scheme://$http_host/admin/;
+  }
+
+  location /admin/ {
+    proxy_pass http://admin_spa;
     include /etc/nginx/templates/proxy_params.inc;
   }
 
@@ -42,28 +53,12 @@ server {
   }
 }
 
-# Dedicated Admin vhost: admin.bdren.ai -> Next.js Admin Console
+# Admin alias vhost: admin.bdren.ai/<path> -> bdren.ai/admin/<path>, so the SPA shares the platform session cookie
 server {
   listen 80;
   server_name ${ADMIN_DOMAIN};
 
-  add_header X-Content-Type-Options nosniff always;
-  add_header X-Frame-Options DENY always;
-  add_header Referrer-Policy strict-origin-when-cross-origin always;
-
-  location /api/ {
-    proxy_pass http://django_backend;
-    include /etc/nginx/templates/proxy_params.inc;
-  }
-
-  location = / {
-    rewrite ^ /admin break;
-    proxy_pass http://next_frontend;
-    include /etc/nginx/templates/proxy_params.inc;
-  }
-
   location / {
-    proxy_pass http://next_frontend;
-    include /etc/nginx/templates/proxy_params.inc;
+    return 301 $scheme://${PLATFORM_DOMAIN}$bdren_port_suffix/admin$request_uri;
   }
 }

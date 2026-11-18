@@ -21,8 +21,8 @@ flowchart LR
   N -->|auth.bdren.ai| ZL[ZITADEL Login v2]
   N -->|auth.bdren.ai| ZA[ZITADEL API]
   N -->|bdren.ai/api, api.bdren.ai| D[Django DRF]
-  N -->|bdren.ai/admin, admin.bdren.ai| A[Next.js admin]
-  N -->|bdren.ai| L[Next.js landing]
+  N -->|bdren.ai/admin/; admin.bdren.ai 301s here| A[Superadmin SPA: admin/, nginx static]
+  N -->|bdren.ai| L[Next.js website + institution portal]
   ZA --> PG[(PostgreSQL: zitadel db)]
   D --> PG2[(PostgreSQL: bdren db)]
   D --> R[(Redis)]
@@ -32,7 +32,8 @@ flowchart LR
 ```
 Routing note: plan asks for `bdren.ai/admin` and `bdren.ai/api` *and* lists `admin.`/`api.` hosts. Decision: **canonical** URLs
 are `bdren.ai/admin` and `bdren.ai/api`; `admin.bdren.ai` / `api.bdren.ai` are 301/alias vhosts. `auth.bdren.ai` stays separate.
-(Django `FORCE_SCRIPT_NAME`/Next `basePath=/admin` handled in Phase 6.)
+The superadmin SPA (`admin/`, Vite build with `base: '/admin/'`) is its own container; nginx sends `bdren.ai/admin/` to it
+and `admin.bdren.ai/<path>` 301s to `bdren.ai/admin/<path>`, so it shares the `bdren_session` cookie with Django.
 
 ## ZITADEL v4 facts verified
 - v4 splits the hosted Login UI into a separate image `ghcr.io/zitadel/zitadel-login` (Login v2) served at `/ui/v2/login`; needs an `IAM_LOGIN_CLIENT` service-user PAT, bootstrapped via shared volume.

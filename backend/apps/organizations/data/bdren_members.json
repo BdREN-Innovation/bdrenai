@@ -1,0 +1,850 @@
+{
+ "source": "https://www.bdren.net.bd/member/partners (Full Member tab), retrieved 2026-11-18",
+ "institutions": [
+  {
+   "name": "University of Dhaka",
+   "short_name": "DU",
+   "sector": "public",
+   "suggested_slug": "du",
+   "offices": []
+  },
+  {
+   "name": "University of Rajshahi",
+   "short_name": "RU",
+   "sector": "public",
+   "suggested_slug": "ru",
+   "offices": []
+  },
+  {
+   "name": "Bangladesh Agricultural University",
+   "short_name": "BAU",
+   "sector": "public",
+   "suggested_slug": "bau",
+   "offices": []
+  },
+  {
+   "name": "Bangladesh University of Engineering & Technology",
+   "short_name": "BUET",
+   "sector": "public",
+   "suggested_slug": "buet",
+   "offices": []
+  },
+  {
+   "name": "University of Chittagong",
+   "short_name": "CU",
+   "sector": "public",
+   "suggested_slug": "cu",
+   "offices": []
+  },
+  {
+   "name": "Jahangirnagar University",
+   "short_name": "JU",
+   "sector": "public",
+   "suggested_slug": "ju",
+   "offices": []
+  },
+  {
+   "name": "Islamic University, Bangladesh",
+   "short_name": "IU",
+   "sector": "public",
+   "suggested_slug": "iu",
+   "offices": []
+  },
+  {
+   "name": "Shahjalal University of Science and Technology",
+   "short_name": "SUST",
+   "sector": "public",
+   "suggested_slug": "sust",
+   "offices": []
+  },
+  {
+   "name": "Khulna University",
+   "short_name": "KU",
+   "sector": "public",
+   "suggested_slug": "ku",
+   "offices": []
+  },
+  {
+   "name": "National University",
+   "short_name": "NU",
+   "sector": "public",
+   "suggested_slug": "nu",
+   "offices": [
+    "Dhanmondi Office"
+   ]
+  },
+  {
+   "name": "Bangladesh Open University",
+   "short_name": "BOU",
+   "sector": "public",
+   "suggested_slug": "bou",
+   "offices": []
+  },
+  {
+   "name": "Bangladesh Medical University",
+   "short_name": "BMU",
+   "sector": "public",
+   "suggested_slug": "bangladesh-medical-university",
+   "offices": []
+  },
+  {
+   "name": "Gazipur Agricultural University",
+   "short_name": "GAU",
+   "sector": "public",
+   "suggested_slug": "gau",
+   "offices": []
+  },
+  {
+   "name": "Hajee Mohammad Danesh Science & Technology University",
+   "short_name": "HSTU",
+   "sector": "public",
+   "suggested_slug": "hstu",
+   "offices": []
+  },
+  {
+   "name": "Mawlana Bhashani Science and Technology University",
+   "short_name": "MBSTU",
+   "sector": "public",
+   "suggested_slug": "mbstu",
+   "offices": []
+  },
+  {
+   "name": "Patuakhali Science and Technology University",
+   "short_name": "PSTU",
+   "sector": "public",
+   "suggested_slug": "pstu",
+   "offices": []
+  },
+  {
+   "name": "Sher-e-Bangla Agricultural University",
+   "short_name": "SBAU",
+   "sector": "public",
+   "suggested_slug": "sbau",
+   "offices": []
+  },
+  {
+   "name": "Chittagong University of Engineering & Technology",
+   "short_name": "CUET",
+   "sector": "public",
+   "suggested_slug": "cuet",
+   "offices": []
+  },
+  {
+   "name": "Rajshahi University of Engineering & Technology",
+   "short_name": "RUET",
+   "sector": "public",
+   "suggested_slug": "ruet",
+   "offices": []
+  },
+  {
+   "name": "Khulna University of Engineering & Technology",
+   "short_name": "KUET",
+   "sector": "public",
+   "suggested_slug": "kuet",
+   "offices": []
+  },
+  {
+   "name": "Dhaka University of Engineering & Technology",
+   "short_name": "DUET",
+   "sector": "public",
+   "suggested_slug": "duet",
+   "offices": []
+  },
+  {
+   "name": "Noakhali Science and Technology University",
+   "short_name": "NSTU",
+   "sector": "public",
+   "suggested_slug": "nstu",
+   "offices": []
+  },
+  {
+   "name": "Jagannath University",
+   "short_name": "JnU",
+   "sector": "public",
+   "suggested_slug": "jnu",
+   "offices": []
+  },
+  {
+   "name": "Comilla University",
+   "short_name": "CoU",
+   "sector": "public",
+   "suggested_slug": "cou",
+   "offices": []
+  },
+  {
+   "name": "Jatiya Kabi Kazi Nazrul Islam University",
+   "short_name": "JKKNIU",
+   "sector": "public",
+   "suggested_slug": "jkkniu",
+   "offices": []
+  },
+  {
+   "name": "Chittagong Veterinary and Animal Sciences University",
+   "short_name": "CVASU",
+   "sector": "public",
+   "suggested_slug": "cvasu",
+   "offices": []
+  },
+  {
+   "name": "Sylhet Agricultural University",
+   "short_name": "SAU",
+   "sector": "public",
+   "suggested_slug": "sau",
+   "offices": []
+  },
+  {
+   "name": "Pabna University of Science and Technology",
+   "short_name": "PUST",
+   "sector": "public",
+   "suggested_slug": "pust",
+   "offices": []
+  },
+  {
+   "name": "Bangladesh University of Professionals",
+   "short_name": "BUP",
+   "sector": "public",
+   "suggested_slug": "bup",
+   "offices": []
+  },
+  {
+   "name": "Gopalganj Science and Technology",
+   "short_name": "GSTU",
+   "sector": "public",
+   "suggested_slug": "gstu",
+   "offices": []
+  },
+  {
+   "name": "Bangladesh University of Textiles",
+   "short_name": "BUTEX",
+   "sector": "public",
+   "suggested_slug": "butex",
+   "offices": []
+  },
+  {
+   "name": "University of Barishal",
+   "short_name": "BU",
+   "sector": "public",
+   "suggested_slug": "bu",
+   "offices": []
+  },
+  {
+   "name": "Rangamati Science and Technology University",
+   "short_name": "RMSTU",
+   "sector": "public",
+   "suggested_slug": "rmstu",
+   "offices": []
+  },
+  {
+   "name": "Bangladesh Maritime University",
+   "short_name": "BMU",
+   "sector": "public",
+   "suggested_slug": "bangladesh-maritime-university",
+   "offices": []
+  },
+  {
+   "name": "Military Institute of Science and Technology",
+   "short_name": "MIST",
+   "sector": "public",
+   "suggested_slug": "mist",
+   "offices": []
+  },
+  {
+   "name": "Islamic Arabic University",
+   "short_name": "IAU",
+   "sector": "public",
+   "suggested_slug": "iau",
+   "offices": []
+  },
+  {
+   "name": "Rajshahi Medical University",
+   "short_name": "",
+   "sector": "public",
+   "suggested_slug": "rajshahi-medical-university",
+   "offices": []
+  },
+  {
+   "name": "Rabindra University, Bangladesh",
+   "short_name": "RUB",
+   "sector": "public",
+   "suggested_slug": "rub",
+   "offices": []
+  },
+  {
+   "name": "University of Frontier Technology, Bangladesh",
+   "short_name": "UFTB",
+   "sector": "public",
+   "suggested_slug": "uftb",
+   "offices": []
+  },
+  {
+   "name": "Netrokona University",
+   "short_name": "NEU",
+   "sector": "public",
+   "suggested_slug": "neu",
+   "offices": []
+  },
+  {
+   "name": "Khulna Agricultural University",
+   "short_name": "KAU",
+   "sector": "public",
+   "suggested_slug": "kau",
+   "offices": []
+  },
+  {
+   "name": "Aviation and Aerospace University, Bangladesh",
+   "short_name": "AAUB",
+   "sector": "public",
+   "suggested_slug": "aaub",
+   "offices": []
+  },
+  {
+   "name": "Chandpur Science and Technology University",
+   "short_name": "CSTU",
+   "sector": "public",
+   "suggested_slug": "cstu",
+   "offices": []
+  },
+  {
+   "name": "Habiganj Agricultural University",
+   "short_name": "HAU",
+   "sector": "public",
+   "suggested_slug": "hau",
+   "offices": []
+  },
+  {
+   "name": "Kurigram Agricultural University",
+   "short_name": "KuriAU",
+   "sector": "public",
+   "suggested_slug": "kuriau",
+   "offices": [
+    "Main Campus",
+    "Dhaka Office"
+   ]
+  },
+  {
+   "name": "Chittagong Medical University",
+   "short_name": "CMU",
+   "sector": "public",
+   "suggested_slug": "cmu",
+   "offices": []
+  },
+  {
+   "name": "North South University",
+   "short_name": "",
+   "sector": "private",
+   "suggested_slug": "north-south-university",
+   "offices": []
+  },
+  {
+   "name": "University of Science and Technology Chittagong",
+   "short_name": "USTC",
+   "sector": "private",
+   "suggested_slug": "ustc",
+   "offices": []
+  },
+  {
+   "name": "Independent University, Bangladesh",
+   "short_name": "IUB",
+   "sector": "private",
+   "suggested_slug": "iub",
+   "offices": []
+  },
+  {
+   "name": "International University of Business Agriculture and Technology",
+   "short_name": "IUBAT",
+   "sector": "private",
+   "suggested_slug": "iubat",
+   "offices": []
+  },
+  {
+   "name": "International Islamic University Chittagong",
+   "short_name": "IIUC",
+   "sector": "private",
+   "suggested_slug": "iiuc",
+   "offices": []
+  },
+  {
+   "name": "Ahsanullah University of Science and Technology",
+   "short_name": "AUST",
+   "sector": "private",
+   "suggested_slug": "aust",
+   "offices": []
+  },
+  {
+   "name": "East West University",
+   "short_name": "EWU",
+   "sector": "private",
+   "suggested_slug": "ewu",
+   "offices": []
+  },
+  {
+   "name": "University of Asia Pacific",
+   "short_name": "UAP",
+   "sector": "private",
+   "suggested_slug": "uap",
+   "offices": []
+  },
+  {
+   "name": "Gono Bishwabidyalay",
+   "short_name": "",
+   "sector": "private",
+   "suggested_slug": "gono-bishwabidyalay",
+   "offices": []
+  },
+  {
+   "name": "Asian University of Bangladesh",
+   "short_name": "AUB",
+   "sector": "private",
+   "suggested_slug": "aub",
+   "offices": []
+  },
+  {
+   "name": "Dhaka International University",
+   "short_name": "DIU",
+   "sector": "private",
+   "suggested_slug": "dhaka-international-university",
+   "offices": []
+  },
+  {
+   "name": "Manarat International University",
+   "short_name": "",
+   "sector": "private",
+   "suggested_slug": "manarat-international-university",
+   "offices": []
+  },
+  {
+   "name": "BRAC University",
+   "short_name": "",
+   "sector": "private",
+   "suggested_slug": "brac-university",
+   "offices": []
+  },
+  {
+   "name": "Leading University",
+   "short_name": "LU",
+   "sector": "private",
+   "suggested_slug": "lu",
+   "offices": []
+  },
+  {
+   "name": "BGC Trust University Bangladesh",
+   "short_name": "",
+   "sector": "private",
+   "suggested_slug": "bgc-trust-university-bangladesh",
+   "offices": []
+  },
+  {
+   "name": "Premier University, Chittagong",
+   "short_name": "",
+   "sector": "private",
+   "suggested_slug": "premier-university-chittagong",
+   "offices": []
+  },
+  {
+   "name": "Daffodil International University",
+   "short_name": "DIU",
+   "sector": "private",
+   "suggested_slug": "daffodil-international-university",
+   "offices": []
+  },
+  {
+   "name": "Stamford University Bangladesh",
+   "short_name": "",
+   "sector": "private",
+   "suggested_slug": "stamford-university-bangladesh",
+   "offices": []
+  },
+  {
+   "name": "State University of Bangladesh",
+   "short_name": "",
+   "sector": "private",
+   "suggested_slug": "state-university-of-bangladesh",
+   "offices": []
+  },
+  {
+   "name": "City University",
+   "short_name": "",
+   "sector": "private",
+   "suggested_slug": "city-university",
+   "offices": []
+  },
+  {
+   "name": "Prime University",
+   "short_name": "",
+   "sector": "private",
+   "suggested_slug": "prime-university",
+   "offices": []
+  },
+  {
+   "name": "Green University of Bangladesh",
+   "short_name": "GUB",
+   "sector": "private",
+   "suggested_slug": "gub",
+   "offices": []
+  },
+  {
+   "name": "World University of Bangladesh",
+   "short_name": "WUB",
+   "sector": "private",
+   "suggested_slug": "wub",
+   "offices": []
+  },
+  {
+   "name": "Shanto-Mariam University of Creative Technology",
+   "short_name": "",
+   "sector": "private",
+   "suggested_slug": "shanto-mariam-university-of-creative-technology",
+   "offices": []
+  },
+  {
+   "name": "Eastern University",
+   "short_name": "",
+   "sector": "private",
+   "suggested_slug": "eastern-university",
+   "offices": []
+  },
+  {
+   "name": "Uttara University",
+   "short_name": "",
+   "sector": "private",
+   "suggested_slug": "uttara-university",
+   "offices": []
+  },
+  {
+   "name": "United International University",
+   "short_name": "UIU",
+   "sector": "private",
+   "suggested_slug": "uiu",
+   "offices": []
+  },
+  {
+   "name": "University of South Asia",
+   "short_name": "",
+   "sector": "private",
+   "suggested_slug": "university-of-south-asia",
+   "offices": []
+  },
+  {
+   "name": "Bangladesh University of Business and Technology",
+   "short_name": "BUBT",
+   "sector": "private",
+   "suggested_slug": "bubt",
+   "offices": []
+  },
+  {
+   "name": "Presidency University",
+   "short_name": "",
+   "sector": "private",
+   "suggested_slug": "presidency-university",
+   "offices": []
+  },
+  {
+   "name": "University of Information Technology and Sciences",
+   "short_name": "UITS",
+   "sector": "private",
+   "suggested_slug": "uits",
+   "offices": []
+  },
+  {
+   "name": "Primeasia University",
+   "short_name": "",
+   "sector": "private",
+   "suggested_slug": "primeasia-university",
+   "offices": []
+  },
+  {
+   "name": "Royal University of Dhaka",
+   "short_name": "",
+   "sector": "private",
+   "suggested_slug": "royal-university-of-dhaka",
+   "offices": []
+  },
+  {
+   "name": "University of Liberal Arts Bangladesh",
+   "short_name": "ULAB",
+   "sector": "private",
+   "suggested_slug": "ulab",
+   "offices": []
+  },
+  {
+   "name": "Atish Dipankar University of Science and Technology",
+   "short_name": "ADUST",
+   "sector": "private",
+   "suggested_slug": "adust",
+   "offices": []
+  },
+  {
+   "name": "Bangladesh Islami University",
+   "short_name": "BIU",
+   "sector": "private",
+   "suggested_slug": "biu",
+   "offices": []
+  },
+  {
+   "name": "European University of Bangladesh",
+   "short_name": "",
+   "sector": "private",
+   "suggested_slug": "european-university-of-bangladesh",
+   "offices": []
+  },
+  {
+   "name": "Varendra University",
+   "short_name": "VU",
+   "sector": "private",
+   "suggested_slug": "vu",
+   "offices": []
+  },
+  {
+   "name": "BGMEA University of Fashion & Technology",
+   "short_name": "",
+   "sector": "private",
+   "suggested_slug": "bgmea-university-of-fashion-technology",
+   "offices": []
+  },
+  {
+   "name": "Exim Bank Agricultural University Bangladesh",
+   "short_name": "",
+   "sector": "private",
+   "suggested_slug": "exim-bank-agricultural-university-bangladesh",
+   "offices": []
+  },
+  {
+   "name": "Sonargaon University",
+   "short_name": "SU",
+   "sector": "private",
+   "suggested_slug": "su",
+   "offices": []
+  },
+  {
+   "name": "Feni University",
+   "short_name": "",
+   "sector": "private",
+   "suggested_slug": "feni-university",
+   "offices": []
+  },
+  {
+   "name": "Port City International University",
+   "short_name": "",
+   "sector": "private",
+   "suggested_slug": "port-city-international-university",
+   "offices": []
+  },
+  {
+   "name": "Bangladesh University of Health Sciences",
+   "short_name": "BUHS",
+   "sector": "private",
+   "suggested_slug": "buhs",
+   "offices": []
+  },
+  {
+   "name": "Chittagong Independent University",
+   "short_name": "CIU",
+   "sector": "private",
+   "suggested_slug": "ciu",
+   "offices": []
+  },
+  {
+   "name": "Notre Dame University Bangladesh",
+   "short_name": "",
+   "sector": "private",
+   "suggested_slug": "notre-dame-university-bangladesh",
+   "offices": []
+  },
+  {
+   "name": "North Bengal International University",
+   "short_name": "NBIU",
+   "sector": "private",
+   "suggested_slug": "nbiu",
+   "offices": []
+  },
+  {
+   "name": "Ranada Prasad Shaha University",
+   "short_name": "RPSU",
+   "sector": "private",
+   "suggested_slug": "rpsu",
+   "offices": []
+  },
+  {
+   "name": "CCN University of Science & Technology",
+   "short_name": "CCNUST",
+   "sector": "private",
+   "suggested_slug": "ccnust",
+   "offices": []
+  },
+  {
+   "name": "Bangladesh Army University of Engineering and Technology",
+   "short_name": "BAUET",
+   "sector": "private",
+   "suggested_slug": "bauet",
+   "offices": []
+  },
+  {
+   "name": "Canadian University of Bangladesh",
+   "short_name": "",
+   "sector": "private",
+   "suggested_slug": "canadian-university-of-bangladesh",
+   "offices": []
+  },
+  {
+   "name": "Northern University of Business & Technology, Khulna",
+   "short_name": "",
+   "sector": "private",
+   "suggested_slug": "northern-university-of-business-technology-khulna",
+   "offices": []
+  },
+  {
+   "name": "Rabindra Maitree University",
+   "short_name": "",
+   "sector": "private",
+   "suggested_slug": "rabindra-maitree-university",
+   "offices": []
+  },
+  {
+   "name": "Znrf University of Management science",
+   "short_name": "ZUMS",
+   "sector": "private",
+   "suggested_slug": "zums",
+   "offices": []
+  },
+  {
+   "name": "International Standard University",
+   "short_name": "ISU",
+   "sector": "private",
+   "suggested_slug": "isu",
+   "offices": []
+  },
+  {
+   "name": "Bangladesh Army University of Science and Technology",
+   "short_name": "BAUST",
+   "sector": "private",
+   "suggested_slug": "baust",
+   "offices": []
+  },
+  {
+   "name": "Jamalpur Science & Technology University",
+   "short_name": "JSTU",
+   "sector": "public",
+   "suggested_slug": "jstu",
+   "offices": []
+  },
+  {
+   "name": "North East University Bangladesh",
+   "short_name": "NEUB",
+   "sector": "private",
+   "suggested_slug": "neub",
+   "offices": []
+  },
+  {
+   "name": "Bogra Science & Technology University",
+   "short_name": "",
+   "sector": "public",
+   "suggested_slug": "bogra-science-technology-university",
+   "offices": []
+  },
+  {
+   "name": "Asian University for Women",
+   "short_name": "AUW",
+   "sector": "other",
+   "suggested_slug": "auw",
+   "offices": []
+  },
+  {
+   "name": "Dr. Momtaz Begum University of Science and Technology",
+   "short_name": "",
+   "sector": "private",
+   "suggested_slug": "dr-momtaz-begum-university-of-science-and-technology",
+   "offices": []
+  },
+  {
+   "name": "Grameen University",
+   "short_name": "",
+   "sector": "private",
+   "suggested_slug": "grameen-university",
+   "offices": []
+  },
+  {
+   "name": "Pirojpur Science and Technology University",
+   "short_name": "",
+   "sector": "public",
+   "suggested_slug": "pirojpur-science-and-technology-university",
+   "offices": []
+  },
+  {
+   "name": "Shariatpur Agricultural University",
+   "short_name": "",
+   "sector": "public",
+   "suggested_slug": "shariatpur-agricultural-university",
+   "offices": []
+  },
+  {
+   "name": "Islamic University of Technology",
+   "short_name": "IUT",
+   "sector": "other",
+   "suggested_slug": "iut",
+   "offices": []
+  },
+  {
+   "name": "Kishoreganj University",
+   "short_name": "KiU",
+   "sector": "public",
+   "suggested_slug": "kiu",
+   "offices": []
+  },
+  {
+   "name": "ASA University Bangladesh",
+   "short_name": "",
+   "sector": "private",
+   "suggested_slug": "asa-university-bangladesh",
+   "offices": []
+  },
+  {
+   "name": "Begum Rokeya University, Rangpur",
+   "short_name": "BRUR",
+   "sector": "public",
+   "suggested_slug": "brur",
+   "offices": []
+  },
+  {
+   "name": "Bangladesh Army International University of Science and Technology",
+   "short_name": "BAIUST",
+   "sector": "private",
+   "suggested_slug": "baiust",
+   "offices": []
+  },
+  {
+   "name": "Naogaon University",
+   "short_name": "",
+   "sector": "public",
+   "suggested_slug": "naogaon-university",
+   "offices": []
+  },
+  {
+   "name": "Khwaja Yunus Ali University",
+   "short_name": "KYAU",
+   "sector": "private",
+   "suggested_slug": "kyau",
+   "offices": []
+  },
+  {
+   "name": "The International University of Scholars",
+   "short_name": "",
+   "sector": "private",
+   "suggested_slug": "the-international-university-of-scholars",
+   "offices": []
+  },
+  {
+   "name": "Sunamganj Science and Technology University",
+   "short_name": "SSTU",
+   "sector": "public",
+   "suggested_slug": "sstu",
+   "offices": []
+  },
+  {
+   "name": "Jashore University of Science and Technology",
+   "short_name": "JUST",
+   "sector": "public",
+   "suggested_slug": "just",
+   "offices": []
+  }
+ ]
+}

@@ -6,6 +6,7 @@ from django.test import Client
 from django.utils import timezone
 
 from apps.accounts.models import Account
+from apps.administration.models import PlatformRoleAssignment
 from apps.billing.models import PaymentRecord
 from apps.identities import zitadel
 from apps.identities.services import provision_user
@@ -60,7 +61,16 @@ def test_profile_shows_details(fake):
     body = signed_in(make_user()).get("/api/v1/auth/profile/").json()
     assert body["first_name"] == "Rahim" and body["last_name"] == "Uddin"
     assert body["email"] == "rahim@du.ac.bd" and body["email_verified"] is True
-    assert body["avatar_url"] is None and body["is_admin"] is False and body["can_edit_name"] is True
+    assert body["avatar_url"] is None and body["is_superadmin"] is False and body["can_edit_name"] is True
+
+
+def test_only_superadmins_are_offered_the_admin_console(fake):
+    """The /admin/ SPA admits only platform_super_admin, so other platform roles must not see its link."""
+    user = make_user()
+    PlatformRoleAssignment.objects.create(user=user, role=PlatformRoleAssignment.Role.ORG_ADMIN)
+    assert signed_in(user).get("/api/v1/auth/profile/").json()["is_superadmin"] is False
+    PlatformRoleAssignment.objects.create(user=user, role=PlatformRoleAssignment.Role.SUPER_ADMIN)
+    assert signed_in(user).get("/api/v1/auth/profile/").json()["is_superadmin"] is True
 
 
 def test_name_update_goes_to_zitadel_then_locally(fake):

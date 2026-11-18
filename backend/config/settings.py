@@ -38,6 +38,9 @@ INSTALLED_APPS = [
     "apps.subscriptions",
     "apps.packages",
     "apps.products",
+    "apps.invitations",
+    "apps.superadmin",
+    "apps.portal",
 ]
 
 MIDDLEWARE = [
@@ -126,13 +129,39 @@ OIDC = {
 # Empty = sign-up endpoints answer 503 and the website falls back to ZITADEL's own registration.
 ZITADEL_SERVICE_TOKEN = env("ZITADEL_SERVICE_TOKEN", "")
 
+# --- Email (invitations) ---
+EMAIL_BACKEND = env("EMAIL_BACKEND") or (
+    "django.core.mail.backends.console.EmailBackend" if DEBUG else "django.core.mail.backends.smtp.EmailBackend"
+)
+EMAIL_HOST = env("EMAIL_HOST", "localhost")
+EMAIL_PORT = int(env("EMAIL_PORT", "587"))
+EMAIL_HOST_USER = env("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = env("EMAIL_USE_TLS", "true").lower() == "true"
+EMAIL_TIMEOUT = int(env("EMAIL_TIMEOUT", "10"))
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", "BDREN AI <no-reply@bdren.ai>")
+
+# Public origin of the website; invitation links point here (<PLATFORM_PUBLIC_URL>/invite/<token>).
+PLATFORM_PUBLIC_URL = env("PLATFORM_PUBLIC_URL", "http://bdren.localhost:8080").rstrip("/")
+INVITATION_TTL_DAYS = int(env("INVITATION_TTL_DAYS", "7"))
+# Emails one request sends itself; bulk actions leave the rest queued for `manage.py send_invitation_emails --loop`.
+INVITATION_INLINE_EMAILS = int(env("INVITATION_INLINE_EMAILS", "5"))
+# One invitation is emailed at most once per this many minutes (Resend answers 429 resend_too_soon before that).
+INVITATION_RESEND_COOLDOWN_MINUTES = int(env("INVITATION_RESEND_COOLDOWN_MINUTES", "5"))
+# Per admin, across the superadmin and portal APIs: invite, resend, resend-expired, import, create-with-admin.
+INVITATION_SEND_RATE = env("INVITATION_SEND_RATE", "120/hour")
+
+# Peers whose X-Real-IP header names the client (the bundled nginx). The backend is reachable only on the
+# internal Docker network, so private ranges are trusted by default; any other peer is recorded as itself.
+TRUSTED_PROXIES = env_list("TRUSTED_PROXIES", "127.0.0.0/8,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16")
+
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": ["rest_framework.authentication.SessionAuthentication"],
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 50,
     "DEFAULT_THROTTLE_CLASSES": ["rest_framework.throttling.AnonRateThrottle", "rest_framework.throttling.UserRateThrottle"],
-    "DEFAULT_THROTTLE_RATES": {"anon": "60/min", "user": "600/min", "auth": "20/min"},
+    "DEFAULT_THROTTLE_RATES": {"anon": "60/min", "user": "600/min", "auth": "20/min", "invitations": "30/min"},
     "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
 }
 

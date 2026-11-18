@@ -71,3 +71,12 @@ class ExternalIdentity(models.Model):
         constraints = [
             models.UniqueConstraint(fields=["issuer", "subject"], name="uniq_externalidentity_issuer_subject"),
         ]
+
+
+class UserSession(models.Model):
+    """Which server-side session belongs to which user, written at sign-in, so signing a user out everywhere
+    deletes only their sessions instead of decoding every session on the platform."""
+
+    session_key = models.CharField(max_length=40, primary_key=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="server_sessions")
+    created_at = models.DateTimeField(auto_now_add=True)

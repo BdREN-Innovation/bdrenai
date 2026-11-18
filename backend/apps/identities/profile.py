@@ -3,6 +3,7 @@ from django.conf import settings
 from django.utils import timezone
 
 from apps.accounts.services import accessible_accounts_for_user
+from apps.administration.models import PlatformRoleAssignment
 from apps.administration.permissions import user_platform_roles
 from apps.billing.models import PaymentRecord
 from apps.subscriptions.models import Subscription
@@ -48,7 +49,7 @@ def serialize(user):
         "avatar_url": avatar_url(user),
         "member_since": user.created_at.date().isoformat(),
         "memberships": memberships,
-        "is_admin": bool(user_platform_roles(user)),
+        "is_superadmin": PlatformRoleAssignment.Role.SUPER_ADMIN in user_platform_roles(user),
         "can_edit_name": zitadel.enabled() and user.issuer == settings.OIDC["ISSUER"],
     }
 

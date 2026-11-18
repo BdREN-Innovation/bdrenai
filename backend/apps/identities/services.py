@@ -5,6 +5,7 @@ from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from apps.accounts.models import Account
+from apps.invitations.services import join_by_institution_sign_in
 from apps.organizations.models import InstitutionalIdentityProvider, Membership, Organization
 
 from .models import ExternalIdentity, User
@@ -33,28 +34,25 @@ def _sync_institutional_organization(user, claims):
     if org.status != Organization.Status.ACTIVE:
         raise UserNotAllowed("Institutional organization is disabled")
 
-    membership = Membership.objects.select_for_update().filter(user=user, organization=org).first()
-    if membership is not None:
-        if membership.status == Membership.Status.PENDING:
-            # Signing in through the institution's own login proves membership: approve the sign-up request.
-            membership.status = Membership.Status.ACTIVE
-            membership.save(update_fields=["status"])
-            return org
-        if membership.status != Membership.Status.ACTIVE:
-            raise UserNotAllowed("Institutional membership is disabled or deprovisioned")
+    membership = Membership.objects.filter(user=user, organization=org).first()
+    if membership is not None and membership.status == Membership.Status.ACTIVE:
         return org
+    if membership is not None and membership.status != Membership.Status.PENDING:
+        raise UserNotAllowed("Institutional membership is disabled or deprovisioned")
 
-    # Determine default role from active InstitutionalIdentityProvider if configured
-    idp_id = claims.get("urn:zitadel:iam:user:idp:id")
     role = Membership.Role.MEMBER
-    if idp_id:
+    idp_id = claims.get("urn:zitadel:iam:user:idp:id")
+    if membership is None and idp_id:
         idp = InstitutionalIdentityProvider.objects.filter(organization=org, zitadel_idp_id=str(idp_id)).first()
         if idp and idp.status != InstitutionalIdentityProvider.Status.ACTIVE:
             raise UserNotAllowed("Upstream institutional identity provider is disabled")
         if idp:
             role = idp.auto_join_role
 
-    Membership.objects.create(user=user, organization=org, role=role, status=Membership.Status.ACTIVE)
+    # Signing in through the institution's own login proves membership: approve or create it, within the seat cap.
+    membership = join_by_institution_sign_in(org, user, role)
+    if membership.status not in (Membership.Status.ACTIVE, Membership.Status.PENDING):
+        raise UserNotAllowed("Institutional membership is disabled or deprovisioned")
     return org
 
 

@@ -13,6 +13,7 @@ from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
 from apps.accounts.services import resolve_authorized_account
+from apps.audit.services import client_ip
 
 from . import oidc, profile, signup, zitadel
 from .models import ExternalIdentity, User
@@ -50,6 +51,16 @@ class _Public(APIView):
     permission_classes = [AllowAny]
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = "auth"
+
+
+@method_decorator(ensure_csrf_cookie, name="dispatch")
+class CsrfView(_Public):
+    """Sets the `csrftoken` cookie for single-page apps before their first unsafe request."""
+
+    throttle_classes = []
+
+    def get(self, request):
+        return JsonResponse({"ok": True})
 
 
 class LoginView(_Public):
@@ -211,7 +222,7 @@ class RegisterView(_Public):
         if not zitadel.enabled():
             return JsonResponse({"error": "signup_unavailable"}, status=503)
         try:
-            user, zid = signup.register(request.data, ip_address=request.META.get("REMOTE_ADDR"))
+            user, zid = signup.register(request.data, ip_address=client_ip(request))
         except signup.SignupInvalid as e:
             return JsonResponse({"error": "invalid", "fields": e.fields}, status=400)
         except zitadel.ZitadelError as e:

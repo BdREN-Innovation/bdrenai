@@ -10,6 +10,7 @@ import {
   postForm,
 } from "@/lib/api";
 import { loginUrl } from "@/content/site";
+import { AdminInstitution, fetchAdminInstitutions, membersPagePath } from "@/lib/portal";
 import { Avatar } from "./Avatar";
 
 const AVATAR_TYPES = ["image/png", "image/jpeg", "image/webp"];
@@ -179,9 +180,11 @@ function DetailsForm({ user, onSaved }: { user: MyProfile; onSaved: (u: MyProfil
 
 function AccessSection({ user }: { user: MyProfile }) {
   const [contexts, setContexts] = useState<AccountContextItem[]>([]);
+  const [administered, setAdministered] = useState<AdminInstitution[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    fetchAdminInstitutions().then(setAdministered);
     apiFetch<{ contexts: AccountContextItem[] }>("/api/v1/accounts/contexts/")
       .then((c) => setContexts(c.contexts))
       .catch(() => setContexts([]));
@@ -229,8 +232,19 @@ function AccessSection({ user }: { user: MyProfile }) {
           {error && <span role="alert" className="text-sm text-brand-strong">{error}</span>}
         </div>
       )}
-      {user.is_admin && (
-        <a href="/admin" className="btn-outline mt-5">
+      {administered.length > 0 && (
+        <ul aria-label="Institutions you manage" className="mt-5 flex flex-wrap gap-3">
+          {administered.map((i) => (
+            <li key={i.slug}>
+              <a href={membersPagePath(i.slug)} className="btn-outline">
+                Manage members of {i.name}
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
+      {user.is_superadmin && (
+        <a href="/admin/" className="btn-outline mt-5">
           Open admin console
         </a>
       )}

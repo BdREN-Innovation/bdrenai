@@ -3,6 +3,10 @@ import uuid
 from django.conf import settings
 from django.db import models
 
+from .validators import validate_domains, validate_timezone
+
+DEFAULT_TIMEZONE = "Asia/Dhaka"
+
 
 class Organization(models.Model):
     """Business or academic institution mapped optionally to a ZITADEL organization ID."""
@@ -12,12 +16,34 @@ class Organization(models.Model):
         SUSPENDED = "suspended"
         DEACTIVATED = "deactivated"
 
+    class Type(models.TextChoices):
+        UNIVERSITY = "university"
+        RESEARCH = "research"
+        GOVERNMENT = "government"
+        SCHOOL = "school"
+        OTHER = "other"
+
+    class Sector(models.TextChoices):
+        PUBLIC = "public"
+        PRIVATE = "private"
+        OTHER = "other"
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=255)
     slug = models.SlugField(max_length=100, unique=True)
     zitadel_organization_id = models.CharField(max_length=128, unique=True, null=True, blank=True)
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.ACTIVE)
+    type = models.CharField(max_length=16, choices=Type.choices, default=Type.OTHER)
+    sector = models.CharField(max_length=16, choices=Sector.choices, blank=True)
+    timezone = models.CharField(max_length=64, default=DEFAULT_TIMEZONE, validators=[validate_timezone])
+    contact_email = models.EmailField(blank=True)
+    # Lowercase email domains allowed to join; empty = any email.
+    sign_in_domains = models.JSONField(default=list, blank=True, validators=[validate_domains])
+    # Institution-wide seat cap across all apps; null = unlimited.
+    seat_cap = models.PositiveIntegerField(null=True, blank=True)
+    seat_cap_reason = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return f"{self.name} ({self.slug})"

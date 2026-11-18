@@ -1,0 +1,14 @@
+{% autoescape off %}Hello,
+
+{% if institution %}{{ inviter }} has invited you to join {{ institution }} on BDREN AI as {{ role }}.{% else %}{{ inviter }} has invited you to create your BDREN AI account.{% endif %}
+
+Accept the invitation here:
+{{ url }}
+
+Sign in with this email address, or create an account with it, then accept.
+The link works once and expires on {{ expires }}.
+
+If you weren't expecting this invitation, you can ignore this email.
+
+BDREN AI
+{% endautoescape %}

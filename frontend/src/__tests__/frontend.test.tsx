@@ -8,7 +8,6 @@ import { Register } from "@/components/site/Register";
 import { Profile } from "@/components/site/Profile";
 import { Pricing } from "@/components/pricing/Pricing";
 import { Checkout } from "@/components/pricing/Checkout";
-import { AdminDashboard, AdminSummaryData } from "@/components/AdminDashboard";
 import { CatalogProduct } from "@/lib/api";
 
 const SAMPLE_PRODUCTS: CatalogProduct[] = [
@@ -63,7 +62,7 @@ const PROFILE = {
   avatar_url: null,
   member_since: "2026-11-01",
   memberships: [{ organization: "Dhaka University", role: "member", status: "pending" }],
-  is_admin: false,
+  is_superadmin: false,
   can_edit_name: true,
 };
 
@@ -287,81 +286,6 @@ describe("Create account", () => {
     );
     render(<Register />);
     expect(await screen.findByText("Continue to BdREN sign-in")).toHaveAttribute("href", "/api/v1/auth/login/?next=%2F");
-  });
-});
-
-describe("BDREN Admin Dashboard RBAC, Product & Package Versioning", () => {
-  const baseSummary: AdminSummaryData = {
-    roles: ["product_manager"],
-    metrics: {
-      total_users: 42,
-      active_organizations: 5,
-      active_subscriptions: 18,
-      total_products: 2,
-      completed_revenue_bdt: "75000.00",
-      pending_payments: 1,
-    },
-    recent_events: [
-      {
-        id: "ev-1",
-        action: "package.version_published",
-        target_type: "PackageVersion",
-        target_id: "v-2",
-        actor_email: "pm@bdren.ai",
-        created_at: "2026-11-14T20:00:00Z",
-      },
-    ],
-  };
-
-  it("enforces RBAC tabs for product_manager vs platform_super_admin", async () => {
-    vi.spyOn(global, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ products: SAMPLE_PRODUCTS }), { status: 200 })
-    );
-    const { rerender } = render(<AdminDashboard initialSummary={baseSummary} />);
-    expect(screen.getByText("Product Management")).toBeInTheDocument();
-    expect(screen.getByText("Package Versioning")).toBeInTheDocument();
-    expect(screen.queryByText("User Management")).not.toBeInTheDocument();
-
-    rerender(<AdminDashboard initialSummary={{ ...baseSummary, roles: ["platform_super_admin"] }} />);
-    expect(screen.getByText("User Management")).toBeInTheDocument();
-    expect(screen.getByText("Organizations & Federation")).toBeInTheDocument();
-    expect(screen.getByText("Subscriptions & Payments")).toBeInTheDocument();
-  });
-
-  it("validates product creation and submits package versioning with migration policy", async () => {
-    const fetchMock = vi.spyOn(global, "fetch").mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input);
-      if (url.includes("/api/v1/catalog/products/")) {
-        return new Response(JSON.stringify({ products: SAMPLE_PRODUCTS }), { status: 200 });
-      }
-      if (url.includes("/api/v1/admin/catalog/")) {
-        return new Response(JSON.stringify({ version: 3, migrated: 4, scheduled: 0, slug: "mailwizard" }), { status: 201 });
-      }
-      return new Response(JSON.stringify({}), { status: 200 });
-    });
-
-    render(<AdminDashboard initialSummary={baseSummary} />);
-
-    // Product Management validation
-    fireEvent.click(screen.getByText("Product Management"));
-    fireEvent.click(screen.getByRole("button", { name: "Create Product" }));
-    expect(screen.getByRole("status")).toHaveTextContent("Product name and slug are required.");
-
-    fireEvent.change(screen.getByLabelText("Product Name"), { target: { value: "Mailwizard" } });
-    fireEvent.change(screen.getByLabelText("Product Slug"), { target: { value: "mailwizard" } });
-    fireEvent.click(screen.getByRole("button", { name: "Create Product" }));
-    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Created product mailwizard"));
-
-    // Package Versioning with migration policy
-    fireEvent.click(screen.getByText("Package Versioning"));
-    await waitFor(() => expect(screen.getByLabelText("Select Package")).toBeInTheDocument());
-    fireEvent.change(screen.getByLabelText("Select Package"), { target: { value: "pkg-pro" } });
-    fireEvent.change(screen.getByLabelText("Subscriber Migration Policy"), { target: { value: "immediate" } });
-    fireEvent.click(screen.getByRole("button", { name: "Publish New Version" }));
-    await waitFor(() =>
-      expect(screen.getByRole("status")).toHaveTextContent("Published v3 (policy=immediate, migrated=4, scheduled=0).")
-    );
-    expect(fetchMock).toHaveBeenCalled();
   });
 });
 

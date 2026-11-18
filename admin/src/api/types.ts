@@ -1,0 +1,379 @@
+/** Request and response shapes of `/api/v1/superadmin/`, exactly as docs/SUPERADMIN_API.md defines them. */
+
+export type ISODate = string;
+export type UUID = string;
+
+export interface Page<T> {
+  results: T[];
+  count: number;
+  page: number;
+  page_size: number;
+}
+
+export interface Results<T> {
+  results: T[];
+}
+
+export interface ApiErrorBody {
+  error: string;
+  message?: string;
+  fields?: Record<string, string>;
+  seats_used?: number;
+  seat_cap?: number | null;
+}
+
+export interface Seats {
+  used: number;
+  cap: number | null;
+}
+
+export type InstitutionType = 'university' | 'research' | 'government' | 'school' | 'other';
+export type InstitutionSector = 'public' | 'private' | 'other';
+export type InstitutionStatus = 'active' | 'suspended' | 'deactivated';
+export type Role = 'member' | 'admin' | 'billing' | 'owner';
+export type MembershipStatus = 'active' | 'suspended' | 'pending' | 'deprovisioned';
+export type UserStatus = 'active' | 'suspended' | 'deactivated';
+export type InvitationStatus = 'pending' | 'accepted' | 'revoked' | 'expired';
+export type InvitationSource = 'superadmin' | 'portal' | 'import';
+
+export interface InstitutionRef {
+  slug: string;
+  name: string;
+}
+
+export interface PersonRef {
+  id: UUID;
+  name: string;
+  email: string;
+}
+
+export interface SessionUser {
+  id: UUID;
+  email: string;
+  name: string;
+  initials: string;
+}
+
+export interface Session {
+  user: SessionUser;
+  roles: string[];
+}
+
+export interface AuditEntry {
+  id: UUID;
+  action: string;
+  target_type: string;
+  target_id: string;
+  actor: PersonRef | null;
+  metadata: Record<string, unknown>;
+  ip_address: string | null;
+  created_at: ISODate;
+}
+
+export interface DashboardCounts {
+  institutions: number;
+  active_institutions: number;
+  users: number;
+  active_users: number;
+  pending_invitations: number;
+  expired_invitations: number;
+  pending_requests: number;
+}
+
+export type AttentionItem =
+  | { kind: 'seats_near_cap'; institution: InstitutionRef; seats: Seats }
+  | { kind: 'expired_invitations'; count: number }
+  | { kind: 'pending_requests'; institution: InstitutionRef; count: number };
+
+export interface RecentInstitution extends InstitutionRef {
+  created_at: ISODate;
+  seats: Seats;
+}
+
+export interface Dashboard {
+  counts: DashboardCounts;
+  attention: AttentionItem[];
+  recent_institutions: RecentInstitution[];
+  recent_activity: AuditEntry[];
+}
+
+export interface InstitutionListItem {
+  id: UUID;
+  slug: string;
+  name: string;
+  type: InstitutionType;
+  sector: InstitutionSector | '';
+  status: InstitutionStatus;
+  seats: Seats;
+  admins: PersonRef[];
+  members_count: number;
+  pending_invitations: number;
+  pending_requests: number;
+  created_at: ISODate;
+}
+
+export interface InstitutionOption {
+  slug: string;
+  name: string;
+  status: InstitutionStatus;
+  seats: Seats;
+}
+
+export interface InstitutionAdmin {
+  membership_id: UUID;
+  user_id: UUID;
+  name: string;
+  email: string;
+  role: Role;
+}
+
+export interface InstitutionCounts {
+  members: number;
+  active: number;
+  suspended: number;
+  pending_invitations: number;
+  expired_invitations: number;
+  pending_requests: number;
+}
+
+export interface InstitutionDetail {
+  id: UUID;
+  slug: string;
+  name: string;
+  type: InstitutionType;
+  sector: InstitutionSector | '';
+  status: InstitutionStatus;
+  timezone: string;
+  contact_email: string;
+  sign_in_domains: string[];
+  seats: Seats;
+  seat_cap_reason: string;
+  counts: InstitutionCounts;
+  admins: InstitutionAdmin[];
+  created_at: ISODate;
+  updated_at: ISODate;
+}
+
+/** A BdREN full member offered as a suggestion when creating an institution. */
+export interface DirectoryEntry {
+  name: string;
+  short_name: string;
+  sector: InstitutionSector;
+  suggested_slug: string;
+  offices: string[];
+}
+
+export interface InstitutionFields {
+  name: string;
+  slug: string;
+  type: InstitutionType;
+  sector: InstitutionSector | '';
+  timezone: string;
+  contact_email: string;
+  sign_in_domains: string[];
+  seat_cap: number | null;
+}
+
+export interface CreateInstitutionBody extends InstitutionFields {
+  admin?: { email: string; name: string };
+}
+
+export interface CreateInstitutionResponse {
+  institution: InstitutionDetail;
+  invitation: Invitation | null;
+  email_sent: boolean;
+}
+
+export interface UpdateInstitutionBody {
+  name?: string;
+  type?: InstitutionType;
+  sector?: InstitutionSector | '';
+  timezone?: string;
+  contact_email?: string;
+  sign_in_domains?: string[];
+  seat_cap?: number | null;
+  reason?: string;
+}
+
+export type UpdateInstitutionResponse = InstitutionDetail & { warning?: 'over_cap' };
+
+export interface ReasonBody {
+  reason: string;
+}
+
+export interface DeactivateBody extends ReasonBody {
+  confirm: string;
+}
+
+export interface Member {
+  membership_id: UUID;
+  user: PersonRef & { status: UserStatus };
+  role: Role;
+  status: MembershipStatus;
+  joined_at: ISODate | null;
+}
+
+/** Rows as read from the CSV; the server validates `role` and answers `bad_role` per row. */
+export interface ImportRowInput {
+  email: string;
+  name: string;
+  role: string;
+}
+
+export type ImportRowStatus = 'ok' | 'error' | 'skip';
+export type ImportReason =
+  | 'invalid_email'
+  | 'duplicate_in_file'
+  | 'already_member'
+  | 'already_invited'
+  | 'bad_role'
+  | 'over_cap'
+  | 'domain_not_allowed';
+
+export interface ImportRowResult {
+  index: number;
+  email: string;
+  status: ImportRowStatus;
+  reason?: ImportReason | null;
+}
+
+export interface ImportResponse {
+  rows: ImportRowResult[];
+  summary: { ok: number; error: number; skip: number; fits: number; seats: Seats };
+  created: number;
+  email_failures: number;
+  email_queued: number;
+}
+
+export interface UpdateMembershipBody {
+  role?: Role;
+  status?: 'active' | 'suspended';
+  reason?: string;
+  force?: boolean;
+}
+
+export interface UserMembership {
+  membership_id: UUID;
+  institution: InstitutionRef;
+  role: Role;
+  status: MembershipStatus;
+}
+
+export interface UserListItem {
+  id: UUID;
+  name: string;
+  email: string;
+  email_verified: boolean;
+  status: UserStatus;
+  created_at: ISODate;
+  last_login_at: ISODate | null;
+  memberships: UserMembership[];
+  is_superadmin: boolean;
+}
+
+export interface ExternalIdentity {
+  issuer: string;
+  subject: string;
+  provider_type: string;
+  created_at: ISODate;
+}
+
+export interface UserDetail extends UserListItem {
+  zitadel_subject: string | null;
+  issuer: string | null;
+  external_identities: ExternalIdentity[];
+  recent_activity: AuditEntry[];
+}
+
+export interface UpdateUserBody {
+  status: 'active' | 'suspended';
+  reason: string;
+}
+
+export interface Invitation {
+  id: UUID;
+  email: string;
+  name: string;
+  institution: InstitutionRef | null;
+  /** null for an individual (no institution) invitation. */
+  role: Role | null;
+  status: InvitationStatus;
+  source: InvitationSource;
+  invited_by: PersonRef | null;
+  expires_at: ISODate;
+  created_at: ISODate;
+  last_sent_at: ISODate;
+  sent_count: number;
+  email_status: 'queued' | 'sending' | 'sent' | 'failed';
+  accepted_by: PersonRef | null;
+  accepted_at: ISODate | null;
+}
+
+export type CreateInvitationBody =
+  | { institution: string; email: string; name: string; role: Role }
+  | { new_institution: InstitutionFields; email: string; name: string; role: Role }
+  | { institution: null; email: string; name: string };
+
+export interface CreateInvitationResponse {
+  invitation: Invitation;
+  institution: InstitutionDetail | null;
+  email_sent: boolean;
+  warning?: 'institution_suspended';
+}
+
+export interface ResendInvitationResponse {
+  invitation: Invitation;
+  email_sent: boolean;
+}
+
+export interface RevokeInvitationResponse {
+  invitation: Invitation;
+}
+
+export interface ResendExpiredResponse {
+  resent: number;
+  email_failures: number;
+  email_queued: number;
+}
+
+export interface SuperAdmin {
+  user: PersonRef & { status: UserStatus };
+  granted_at: ISODate;
+}
+
+export type AddAdminBody = { user_id: UUID } | { email: string };
+
+export interface ListParams {
+  q?: string;
+  page?: number;
+  page_size?: number;
+}
+
+export interface InstitutionListParams extends ListParams {
+  status?: InstitutionStatus;
+}
+
+export interface MemberListParams extends ListParams {
+  status?: MembershipStatus;
+  role?: Role;
+}
+
+export interface UserListParams extends ListParams {
+  status?: UserStatus;
+  institution?: string;
+  role?: Role;
+}
+
+export interface InvitationListParams extends ListParams {
+  status?: InvitationStatus;
+  institution?: string;
+}
+
+export interface AuditListParams extends ListParams {
+  action?: string;
+  actor?: UUID;
+  target_type?: string;
+  target_id?: string;
+  from?: string;
+  to?: string;
+}

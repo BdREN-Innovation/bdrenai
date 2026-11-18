@@ -2,6 +2,7 @@ import uuid
 
 from django.conf import settings
 from django.db import models
+from django.db.models.fields.json import KeyTransform
 
 
 class AuditLog(models.Model):
@@ -20,3 +21,9 @@ class AuditLog(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
+        indexes = [
+            # Institution history: filter(metadata__organization_id=<id>) uses this expression index.
+            models.Index(KeyTransform("organization_id", "metadata"), "created_at", name="audit_organization_id"),
+            # A user's activity: filter(Q(actor=user) | Q(target_type="User", target_id=...)) and the audit filters.
+            models.Index(fields=["target_type", "target_id", "created_at"], name="audit_target"),
+        ]

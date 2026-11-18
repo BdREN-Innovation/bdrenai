@@ -2,13 +2,9 @@ import type { Metadata } from "next";
 import { PRODUCTS } from "@/content/products";
 import { Logo } from "@/components/site/Logo";
 import { SignIn } from "@/components/site/SignIn";
+import { safeNext } from "@/content/site";
 
 export const metadata: Metadata = { title: "Sign in" };
-
-function safeNext(value: string | string[] | undefined): string {
-  const v = Array.isArray(value) ? value[0] : value;
-  return v && v.startsWith("/") && !v.startsWith("//") ? v : "/";
-}
 
 export default function SignInPage({ searchParams }: { searchParams: { next?: string | string[] } }) {
   const next = safeNext(searchParams.next);

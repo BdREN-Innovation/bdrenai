@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Register } from "@/components/site/Register";
+import { safeNext } from "@/content/site";
 
 export const metadata: Metadata = { title: "Create your account" };
 
@@ -12,7 +13,12 @@ const BENEFITS = [
   { title: "Passkeys and two-step login", body: "Add them from your account settings any time." },
 ];
 
-export default function RegisterPage() {
+type Params = { email?: string | string[]; next?: string | string[] };
+
+export default function RegisterPage({ searchParams }: { searchParams: Params }) {
+  const next = safeNext(searchParams.next);
+  const email = Array.isArray(searchParams.email) ? searchParams.email[0] : searchParams.email;
+  const signIn = next === "/" ? "/sign-in" : `/sign-in?${new URLSearchParams({ next })}`;
   return (
     <div className="flex min-h-screen flex-wrap">
       <aside
@@ -58,12 +64,12 @@ export default function RegisterPage() {
       <main className="flex min-w-0 flex-[1_1_560px] flex-col px-6 pb-12 pt-8">
         <p className="text-[15px] text-muted">
           Already have an account?{" "}
-          <a href="/sign-in" className="font-semibold text-brand-text hover:text-brand-strong">
+          <a href={signIn} className="font-semibold text-brand-text hover:text-brand-strong">
             Sign in
           </a>
         </p>
         <div className="flex flex-1 items-center justify-center py-10">
-          <Register />
+          <Register initialEmail={email?.trim() || ""} next={next} />
         </div>
       </main>
     </div>

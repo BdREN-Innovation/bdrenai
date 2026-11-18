@@ -54,13 +54,23 @@ function getCsrfToken(): string {
   return match ? decodeURIComponent(match[1]) : "";
 }
 
+export const CSRF_PATH = "/api/v1/csrf/";
+
+/** Returns the CSRF token, asking Django to set the `csrftoken` cookie first when the browser has none yet. */
+async function csrfToken(): Promise<string> {
+  const existing = getCsrfToken();
+  if (existing) return existing;
+  await fetch(CSRF_PATH, { credentials: "include" }).catch(() => undefined);
+  return getCsrfToken();
+}
+
 export async function apiFetch<T = any>(path: string, options: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(options.headers as Record<string, string> | undefined),
   };
   if (options.method && options.method !== "GET") {
-    const csrf = getCsrfToken();
+    const csrf = await csrfToken();
     if (csrf) headers["X-CSRFToken"] = csrf;
   }
   const res = await fetch(path, {
@@ -78,7 +88,22 @@ export async function apiFetch<T = any>(path: string, options: RequestInit = {})
 export interface FormResult<T> {
   ok: boolean;
   status: number;
-  data: T & { error?: string; fields?: Record<string, string> };
+  data: T & { error?: string; message?: string; fields?: Record<string, string> };
+}
+
+async function send<T>(path: string, init: RequestInit): Promise<FormResult<T>> {
+  try {
+    const res = await fetch(path, { ...init, credentials: "include" });
+    const data = await res.json().catch(() => ({ error: `HTTP_${res.status}` }));
+    return { ok: res.ok, status: res.status, data };
+  } catch {
+    return { ok: false, status: 0, data: { error: "network" } as FormResult<T>["data"] };
+  }
+}
+
+/** GETs JSON and returns the body whatever the status, so pages can tell 401, 403 and 404 apart. */
+export function getJson<T>(path: string): Promise<FormResult<T>> {
+  return send<T>(path, { headers: { Accept: "application/json" } });
 }
 
 /**
@@ -91,20 +116,9 @@ export async function postForm<T = object>(
   method: "POST" | "PATCH" | "DELETE" = "POST"
 ): Promise<FormResult<T>> {
   const isUpload = body instanceof FormData;
-  const headers: Record<string, string> = { "X-CSRFToken": getCsrfToken() };
+  const headers: Record<string, string> = { "X-CSRFToken": await csrfToken() };
   if (!isUpload) headers["Content-Type"] = "application/json";
-  try {
-    const res = await fetch(path, {
-      method,
-      credentials: "include",
-      headers,
-      body: isUpload ? body : JSON.stringify(body),
-    });
-    const data = await res.json().catch(() => ({ error: `HTTP_${res.status}` }));
-    return { ok: res.ok, status: res.status, data };
-  } catch {
-    return { ok: false, status: 0, data: { error: "network" } as FormResult<T>["data"] };
-  }
+  return send<T>(path, { method, headers, body: isUpload ? body : JSON.stringify(body) });
 }
 
 export interface Institution {
@@ -122,7 +136,7 @@ export interface MyProfile {
   avatar_url: string | null;
   member_since: string;
   memberships: { organization: string; role: string; status: string }[];
-  is_admin: boolean;
+  is_superadmin: boolean;
   can_edit_name: boolean;
 }
 

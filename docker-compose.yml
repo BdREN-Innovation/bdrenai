@@ -1,7 +1,7 @@
 name: bdren-sso
 
 # Complete BDREN Centralized Identity & SaaS Entitlement Stack:
-# ZITADEL v4.20.3 (API + Login v2), PostgreSQL 17, Redis 7, Django DRF Backend, Next.js Frontend, Nginx.
+# ZITADEL v4.20.3 (API + Login v2), PostgreSQL 17, Redis 7, Django DRF Backend, Next.js Frontend, Admin SPA, Nginx.
 
 services:
   nginx:
@@ -29,6 +29,7 @@ services:
       zitadel-login: {condition: service_healthy}
       backend: {condition: service_healthy}
       frontend: {condition: service_healthy}
+      admin: {condition: service_healthy}
 
   backend:
     build:
@@ -39,7 +40,7 @@ services:
       sh -c "python manage.py migrate --noinput &&
              python manage.py seed_bdren_catalog &&
              gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 60"
-    environment:
+    environment: &backend-env
       DJANGO_DEBUG: ${DJANGO_DEBUG:-false}
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-dev-only-secret-key-change-in-prod}
       DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1,bdren.localhost,admin.bdren.localhost,api.bdren.localhost,bdren.ai,admin.bdren.ai,api.bdren.ai}
@@ -57,6 +58,19 @@ services:
       OIDC_POST_LOGOUT_REDIRECT_URI: ${OIDC_POST_LOGOUT_REDIRECT_URI:-http://bdren.localhost:8080/api/v1/auth/logged-out/}
       OIDC_ALLOWED_REDIRECT_ORIGINS: ${OIDC_ALLOWED_REDIRECT_ORIGINS:-http://bdren.localhost:8080,http://admin.bdren.localhost:8080}
       ZITADEL_SERVICE_TOKEN: ${ZITADEL_SERVICE_TOKEN:-}
+      EMAIL_BACKEND: ${EMAIL_BACKEND:-}
+      EMAIL_HOST: ${EMAIL_HOST:-localhost}
+      EMAIL_PORT: ${EMAIL_PORT:-587}
+      EMAIL_HOST_USER: ${EMAIL_HOST_USER:-}
+      EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
+      EMAIL_USE_TLS: ${EMAIL_USE_TLS:-true}
+      DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-BDREN AI <no-reply@bdren.ai>}
+      PLATFORM_PUBLIC_URL: ${PLATFORM_PUBLIC_URL:-http://bdren.localhost:8080}
+      INVITATION_TTL_DAYS: ${INVITATION_TTL_DAYS:-7}
+      INVITATION_INLINE_EMAILS: ${INVITATION_INLINE_EMAILS:-5}
+      INVITATION_RESEND_COOLDOWN_MINUTES: ${INVITATION_RESEND_COOLDOWN_MINUTES:-5}
+      INVITATION_SEND_RATE: ${INVITATION_SEND_RATE:-120/hour}
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-127.0.0.0/8,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/api/v1/health/"]
       interval: 10s
@@ -67,6 +81,21 @@ services:
     depends_on:
       postgres: {condition: service_healthy}
       redis: {condition: service_healthy}
+
+  # Mail worker: sends the invitation emails that bulk actions (imports, resend-expired) leave queued, so no
+  # web request waits on SMTP for more than INVITATION_INLINE_EMAILS messages.
+  mailer:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: ["python", "manage.py", "send_invitation_emails", "--loop"]
+    environment: *backend-env
+    healthcheck:
+      disable: true
+    networks: [internal]
+    depends_on:
+      backend: {condition: service_healthy}
 
   frontend:
     build:
@@ -85,6 +114,20 @@ services:
     networks: [internal]
     depends_on:
       backend: {condition: service_healthy}
+
+  # Superadmin SPA (admin/): static build served by nginx at /admin/ on the platform domain.
+  admin:
+    build:
+      context: ./admin
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/admin/"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 5s
+    networks: [internal]
 
   zitadel-api:
     image: ghcr.io/zitadel/zitadel:${ZITADEL_VERSION}

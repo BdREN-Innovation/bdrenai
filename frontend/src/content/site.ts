@@ -27,3 +27,9 @@ export function loginUrl(next = "/", loginHint?: string): string {
   if (hint) params.set("login_hint", hint);
   return `${LOGIN_PATH}?${params.toString()}`;
 }
+
+/** Keeps a `next` target on this site: only a relative path, never `//host` or `/\host`. */
+export function safeNext(value: string | string[] | null | undefined): string {
+  const v = Array.isArray(value) ? value[0] : value;
+  return v && v.startsWith("/") && !v.startsWith("//") && !v.startsWith("/\\") ? v : "/";
+}
