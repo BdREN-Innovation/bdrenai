@@ -204,6 +204,7 @@ def complete(payment, *, actor=None, ip_address=None, source, email_to=None):
         payment.subscription = None
         payment.notes = f"{payment.notes}\n{NOT_APPLIED_NOTE}".strip()
     now = timezone.now()
+    payment.applied = applied
     payment.status = Status.COMPLETED
     payment.completed_at = now
     payment.receipt_number = receipts.next_receipt_number(now)
@@ -232,6 +233,7 @@ def _create(account, quote, *, method, recorded_by=None, **fields):
     return PaymentRecord.objects.create(
         account=account,
         subscription=quote.subscription,
+        target_subscription=quote.subscription,
         package_version=quote.package_version,
         kind=quote.kind,
         method=method,

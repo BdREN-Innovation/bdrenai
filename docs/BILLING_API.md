@@ -376,3 +376,18 @@ Where the build is more specific than the sections above:
   amount, currency, billing_interval, seat_limit}]` — cheaper packages each renewing subscription can be scheduled to
   (added on feature/institution-billing).
 - The superadmin `institutions/<slug>/billing/` response includes `offers` (same shape as the portal's).
+
+## Payment: applied and target subscription (2026-11-19)
+
+`Payment` (superadmin and portal shapes) gains:
+- `"applied"`: `true` when completing the payment changed a subscription (created, extended or replaced it);
+  `false` when the money was recorded without applying it (a bKash payment that settled after a newer purchase of
+  the same apps — abandoned or reconciled late; BdREN refunds it; `notes` explains); `null` while pending/failed/
+  cancelled/rejected, and for legacy rows from before this field.
+- `"subscription_id"`: the subscription the payment created or extended (`null` when not applied).
+- `"target_subscription_id"`: the live subscription a `renew`/`upgrade` was bought for when the payment started,
+  kept even when the payment is not applied (`null` for `new`). With `package` this says which package and
+  subscription a payment renewed or replaced.
+Use `applied === false` for a "Not applied to a package" label; do not match the note's wording.
+Migration `billing 0007_applied` backfills: paid rows with a subscription → `applied=true`; paid rows with the
+not-applied note → `false`; renew/upgrade rows → `target_subscription` = their subscription.

@@ -10,6 +10,7 @@ from django.utils import timezone
 from apps.audit.models import AuditLog
 from apps.billing import quotes
 from apps.billing import services as billing
+from apps.billing import shapes as billing_shapes
 from apps.billing.models import PaymentRecord
 from apps.invitations.errors import ServiceError
 from apps.invitations.models import Notice
@@ -176,6 +177,9 @@ def test_callback_success_completes_exactly_once(fake_bkash, admin, packages, cl
     sub = payment.subscription
     assert (sub.status, sub.package_version.package_id) == (Subscription.Status.ACTIVE, packages["basic"].pk)
     assert sub.expires_at == payment.period_end
+    assert payment.applied is True and payment.target_subscription_id is None
+    shown = billing_shapes.payment(billing.load_payment(payment.pk))
+    assert (shown["applied"], shown["subscription_id"], shown["target_subscription_id"]) == (True, str(sub.pk), None)
 
     again = callback(client)
     assert again["Location"].endswith("result=success")
@@ -214,6 +218,7 @@ def test_callback_renewal_extends_from_the_period_end(fake_bkash, admin, account
     sub.refresh_from_db()
     payment = PaymentRecord.objects.get()
     assert payment.status == Status.COMPLETED and payment.subscription_id == sub.pk
+    assert payment.target_subscription_id == sub.pk and payment.applied is True
     assert payment.period_start == old_end
     assert sub.expires_at == old_end + timedelta(days=30) and sub.status == Subscription.Status.ACTIVE
     assert Subscription.objects.count() == 1
@@ -232,6 +237,7 @@ def test_callback_upgrade_ends_the_old_subscription_now(fake_bkash, admin, accou
     assert old.status == Subscription.Status.CANCELLED
     assert abs((old.expires_at - payment.period_start).total_seconds()) < 1
     assert old.history.filter(notes__startswith="Upgraded to Standard").exists()
+    assert payment.target_subscription_id == old.pk and payment.applied is True
 
 
 @pytest.mark.parametrize(("outcome", "status", "result"), [
@@ -640,6 +646,9 @@ def test_an_abandoned_payment_paid_after_a_newer_purchase_records_money_but_keep
     second.refresh_from_db()
     assert first.status == Status.COMPLETED and first.bkash_trx_id == TRX_ID and first.receipt_number
     assert first.subscription_id is None and first.notes == billing.NOT_APPLIED_NOTE
+    assert first.applied is False and second.applied is True
+    shown = billing_shapes.payment(billing.load_payment(first.pk), portal=True)
+    assert (shown["applied"], shown["subscription_id"]) == (False, None)
     assert second.subscription.status == Subscription.Status.ACTIVE
     assert second.subscription.package_version.package_id == packages["standard"].pk
     assert Subscription.objects.count() == 1
@@ -655,6 +664,7 @@ def test_an_abandoned_payment_for_other_apps_is_applied_when_paid_late(fake_bkas
     second.refresh_from_db()
     assert first.status == Status.COMPLETED and first.subscription.package_version.package_id == packages["basic"].pk
     assert first.notes == "" and second.subscription.status == Subscription.Status.ACTIVE
+    assert first.applied is True
 
 
 def test_abandon_while_bkash_creates_the_payment_hands_out_no_checkout_url(fake_bkash, monkeypatch, admin, packages):

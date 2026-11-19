@@ -294,4 +294,6 @@ def test_data_migration_maps_legacy_payments():
     assert (rows[offline.pk].method, rows[offline.pk].status) == ("other", "rejected")
     assert all(p.payment_date is not None and p.package_version_id is None for p in rows.values())
     assert rows[bank.pk].refunded_amount == Decimal("0") and rows[bank.pk].receipt_number is None
+    # Legacy rows predate `applied`: a completed one with no linked subscription stays unknown, never "not applied".
+    assert all(p.applied is None and p.target_subscription_id is None for p in rows.values())
     assert Package.objects.count() == 0

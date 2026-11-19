@@ -37,6 +37,13 @@ class PaymentRecord(models.Model):
     subscription = models.ForeignKey(
         "subscriptions.Subscription", null=True, blank=True, on_delete=models.SET_NULL, related_name="payments"
     )
+    # The live subscription a renew/upgrade was bought for when the payment started (kept even if not applied).
+    target_subscription = models.ForeignKey(
+        "subscriptions.Subscription", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    # Set on completion: True when the quote changed a subscription, False when the money was recorded without
+    # applying it (a late bKash payment after a newer purchase of the same apps). None while pending, or legacy.
+    applied = models.BooleanField(null=True, blank=True)
     package_version = models.ForeignKey(
         "packages.PackageVersion", null=True, blank=True, on_delete=models.PROTECT, related_name="payments"
     )
