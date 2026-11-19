@@ -15,6 +15,11 @@ export function usageExportUrl(slug: string, params: UsageParams): string {
   return withQuery(`${institutionPath(slug)}usage/export.csv`, { ...params });
 }
 
+/** A payment's printable receipt or bank slip, served only to this institution's admins. */
+export function paymentFileUrl(slug: string, id: string, file: 'receipt' | 'attachment'): string {
+  return `${institutionPath(slug)}billing/payments/${encodeURIComponent(id)}/${file}/`;
+}
+
 /** Calls under `/api/v1/portal/institutions/<slug>/`; writes carry the CSRF token like every other mutation. */
 export function portalApi(slug: string) {
   const base = institutionPath(slug);
@@ -22,5 +27,6 @@ export function portalApi(slug: string) {
     get: <T>(path: string, query?: Query, signal?: AbortSignal) => request<T>(`${base}${path}`, { query, signal }),
     post: <T>(path: string, body: unknown = {}) => request<T>(`${base}${path}`, { method: 'POST', body }),
     patch: <T>(path: string, body: unknown) => request<T>(`${base}${path}`, { method: 'PATCH', body }),
+    delete: <T>(path: string, query?: Query) => request<T>(`${base}${path}`, { method: 'DELETE', query }),
   };
 }

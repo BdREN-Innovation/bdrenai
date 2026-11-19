@@ -6,7 +6,7 @@ import { Building2, Mail, ShieldCheck, UserRound, Users } from 'lucide-react';
 import type { MembersSearch } from './tabs';
 import { COMMAND_CONTENT, COMMAND_INPUT, COMMAND_OVERLAY, CommandItem, ThemeCommands } from '@/components/layout/CommandMenu';
 import { PORTAL_PATHS } from './tabs';
-import { PORTAL_NAV } from './sidebar';
+import { portalNav, usePortalRole } from './sidebar';
 import { useAccess } from './access';
 
 const MEMBER_TABS: { label: string; search: MembersSearch; icon: typeof Users }[] = [
@@ -19,6 +19,7 @@ const MEMBER_TABS: { label: string; search: MembersSearch; icon: typeof Users }[
 export function PortalCommandMenu({ slug, open, onOpenChange }: { slug: string; open: boolean; onOpenChange: (open: boolean) => void }) {
   const navigate = useNavigate();
   const { session, institutions } = useAccess();
+  const role = usePortalRole(slug);
   const [search, setSearch] = useState('');
   const others = institutions.filter((institution) => institution.slug !== slug);
 
@@ -41,7 +42,7 @@ export function PortalCommandMenu({ slug, open, onOpenChange }: { slug: string; 
       <Command.List className="max-h-96 overflow-y-auto p-2">
         <Command.Empty className="px-4 py-8 text-center text-sm text-ink-muted">No results</Command.Empty>
         <Command.Group heading="Pages">
-          {PORTAL_NAV.flatMap((section) => section.items).map((item) => (
+          {portalNav(role).flatMap((section) => section.items).map((item) => (
             <CommandItem
               key={item.page}
               icon={item.icon}

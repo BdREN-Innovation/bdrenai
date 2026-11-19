@@ -1,6 +1,7 @@
 import { Link, useRouterState } from '@tanstack/react-router';
-import { ArrowLeftRight, AtSign, ChartColumn, CircleHelp, LayoutDashboard, ShieldCheck, Users } from 'lucide-react';
+import { ArrowLeftRight, AtSign, ChartColumn, CircleHelp, LayoutDashboard, ReceiptText, ShieldCheck, Users } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import type { Role } from '@/api/types';
 import type { PortalPage } from './tabs';
 import {
   AccountLinkContent,
@@ -12,6 +13,7 @@ import {
   navLinkClass,
 } from '@/components/layout/Sidebar';
 import { PORTAL_PATHS } from './tabs';
+import { BILLING_ROLES } from './billing/rules';
 import { useAccess } from './access';
 
 export interface PortalNavItem {
@@ -19,9 +21,16 @@ export interface PortalNavItem {
   label: string;
   icon: LucideIcon;
   keywords?: string[];
+  /** Shown only to these roles in the institution; every role when unset. */
+  roles?: ReadonlySet<Role>;
 }
 
-export const PORTAL_NAV: { title: string; items: PortalNavItem[] }[] = [
+export interface PortalNavSection {
+  title: string;
+  items: PortalNavItem[];
+}
+
+export const PORTAL_NAV: PortalNavSection[] = [
   {
     title: 'Overview',
     items: [
@@ -30,9 +39,29 @@ export const PORTAL_NAV: { title: string; items: PortalNavItem[] }[] = [
     ],
   },
   { title: 'People', items: [{ page: 'members', label: 'Members', icon: Users, keywords: ['people', 'invite', 'seats'] }] },
-  { title: 'Institution', items: [{ page: 'domains', label: 'Email domains', icon: AtSign, keywords: ['sign-in', 'domains'] }] },
+  {
+    title: 'Institution',
+    items: [
+      { page: 'domains', label: 'Email domains', icon: AtSign, keywords: ['sign-in', 'domains'] },
+      { page: 'billing', label: 'Billing', icon: ReceiptText, keywords: ['payments', 'bkash', 'renew', 'upgrade', 'receipts'], roles: BILLING_ROLES },
+    ],
+  },
   { title: 'Support', items: [{ page: 'help', label: 'Help', icon: CircleHelp, keywords: ['contact', 'support', 'bdren'] }] },
 ];
+
+/** The console's pages the signed-in user's role in this institution may open. */
+export function portalNav(role: Role | undefined): PortalNavSection[] {
+  return PORTAL_NAV.map((section) => ({
+    ...section,
+    items: section.items.filter((item) => !item.roles || (role !== undefined && item.roles.has(role))),
+  })).filter((section) => section.items.length > 0);
+}
+
+/** The signed-in user's role in the institution at `slug`, once the institution list has loaded. */
+export function usePortalRole(slug: string): Role | undefined {
+  const { institutions } = useAccess();
+  return institutions.find((institution) => institution.slug === slug)?.role;
+}
 
 interface PortalSidebarProps {
   slug: string;
@@ -45,6 +74,7 @@ interface PortalSidebarProps {
 export function PortalSidebar({ slug, name, collapsed, onToggle }: PortalSidebarProps) {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const { session, institutions, user } = useAccess();
+  const role = usePortalRole(slug);
   const accountLink = (label: string) => ({
     'aria-label': collapsed ? label : undefined,
     title: collapsed ? label : undefined,
@@ -75,7 +105,7 @@ export function PortalSidebar({ slug, name, collapsed, onToggle }: PortalSidebar
         </>
       }
     >
-      {PORTAL_NAV.map((section) => (
+      {portalNav(role).map((section) => (
         <NavGroup key={section.title} title={section.title} collapsed={collapsed}>
           {section.items.map((item) => {
             const path = `/portal/${slug}/${item.page}`;

@@ -21,6 +21,10 @@ export interface ApiErrorBody {
   seats_used?: number;
   seat_cap?: number | null;
   conflicts?: DomainConflict[];
+  /** 409 `seats_exceed_package`: seats in use against the package's seat limit. */
+  seats?: Seats;
+  /** 409 `checkout_in_progress`: the bKash payment already started. */
+  payment?: Pick<Payment, 'id' | 'amount' | 'currency' | 'package' | 'status' | 'created_at'>;
 }
 
 /** A sign-in domain another institution already lists (409 `domain_taken`). */

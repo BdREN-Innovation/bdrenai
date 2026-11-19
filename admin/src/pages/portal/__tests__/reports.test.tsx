@@ -3,7 +3,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { DashboardData, UsageDay, UsageReport, UsageSummary } from '@/features/portal/types';
 import type { MockRequest } from '@/test/api';
-import { DU, renderPortal } from '@/test/portal';
+import { DU, billing, emptyBilling, renderPortal, standardSubscription } from '@/test/portal';
 import { reply } from '@/test/api';
 
 const SUMMARY: UsageSummary = {
@@ -100,13 +100,43 @@ describe('Dashboard page', () => {
     expect(follow).toHaveTextContent('2 members pay for a personal plan');
   });
 
-  it('warns about a package that ends soon without renewing', async () => {
-    renderPortal('/portal/du/dashboard', { [`GET ${DU}/dashboard/`]: DASHBOARD });
+  it('lists active packages from the billing data and asks to renew one that ends soon', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-19T06:00:00Z'));
+    renderPortal('/portal/du/dashboard', { [`GET ${DU}/dashboard/`]: DASHBOARD, [`GET ${DU}/billing/`]: billing });
     const packages = await screen.findByRole('region', { name: 'Packages' });
-    const synapse = within(packages).getByText('Synapse').closest('li') as HTMLElement;
-    expect(within(synapse).getByText('Ends in 12 days (1 Dec 2026)')).toHaveClass('text-danger-fg');
-    const mindspear = within(packages).getByText('Mindspear').closest('li') as HTMLElement;
-    expect(within(mindspear).getByText(/Renews in 195 days/)).not.toHaveClass('text-danger-fg');
+    const row = (await within(packages).findByText('Synapse Standard')).closest('li') as HTMLElement;
+    expect(within(row).getByText('Renew by 30 Nov 2026 (12 days left)')).toHaveClass('text-danger-fg');
+    expect(within(packages).getByRole('link', { name: 'Renew' })).toHaveAttribute('href', '/admin/portal/du/billing');
+    expect(within(packages).getByRole('link', { name: 'Billing' })).toHaveAttribute('href', '/admin/portal/du/billing');
+    vi.useRealTimers();
+  });
+
+  it('shows the next period end without a call to action while renewal is far off', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-02T06:00:00Z'));
+    const switching = { ...standardSubscription, scheduled_package: { id: 'pkg-basic', name: 'Synapse Basic' } };
+    renderPortal('/portal/du/dashboard', { [`GET ${DU}/dashboard/`]: DASHBOARD, [`GET ${DU}/billing/`]: { ...billing, subscriptions: [switching] } });
+    const packages = await screen.findByRole('region', { name: 'Packages' });
+    const row = (await within(packages).findByText('Synapse Standard')).closest('li') as HTMLElement;
+    expect(within(row).getByText('Renew by 30 Nov 2026 (29 days left)')).not.toHaveClass('text-danger-fg');
+    expect(row).toHaveTextContent('Switches to Synapse Basic at renewal');
+    expect(within(packages).queryByRole('link', { name: 'Renew' })).not.toBeInTheDocument();
+    vi.useRealTimers();
+  });
+
+  it('asks to choose a package when nothing is active, and explains a billing error', async () => {
+    renderPortal('/portal/du/dashboard', { [`GET ${DU}/dashboard/`]: DASHBOARD, [`GET ${DU}/billing/`]: emptyBilling });
+    const packages = await screen.findByRole('region', { name: 'Packages' });
+    expect(await within(packages).findByText(/Your institution has no active package/)).toBeInTheDocument();
+    expect(within(packages).getByRole('link', { name: 'Choose a package' })).toHaveAttribute('href', '/admin/portal/du/billing');
+  });
+
+  it('shows an error with a retry when the billing data fails to load', async () => {
+    renderPortal('/portal/du/dashboard', { [`GET ${DU}/dashboard/`]: DASHBOARD, [`GET ${DU}/billing/`]: reply(500, { error: 'server_error', message: 'Billing is down.' }) });
+    const packages = await screen.findByRole('region', { name: 'Packages' });
+    expect(await within(packages).findByRole('alert')).toHaveTextContent('Billing is down.');
+    expect(within(packages).getByRole('button', { name: 'Try again' })).toBeInTheDocument();
   });
 
   it('narrows the usage figures to one app', async () => {
@@ -119,10 +149,9 @@ describe('Dashboard page', () => {
   });
 
   it('explains when the institution has no usage yet', async () => {
-    renderPortal('/portal/du/dashboard', { [`GET ${DU}/dashboard/`]: { ...DASHBOARD, usage: null, packages: [] } });
+    renderPortal('/portal/du/dashboard', { [`GET ${DU}/dashboard/`]: { ...DASHBOARD, usage: null, packages: [] }, [`GET ${DU}/billing/`]: emptyBilling });
     expect(await screen.findByText(/Usage appears here once your institution has a package/)).toBeInTheDocument();
     expect(screen.queryByRole('group', { name: 'Usage this week' })).not.toBeInTheDocument();
-    expect(screen.getByText(/Your institution has no active package/)).toBeInTheDocument();
   });
 });
 

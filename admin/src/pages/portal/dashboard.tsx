@@ -2,9 +2,10 @@ import { useMemo, useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { ChartColumn } from 'lucide-react';
 import type { ReactNode } from 'react';
-import type { DashboardData, DashboardPackage, ProductRef } from '@/features/portal/types';
+import type { DashboardData, ProductRef } from '@/features/portal/types';
 import type { MembersSearch } from '@/features/portal/tabs';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui';
+import { PackagesSummary } from '@/features/portal/billing/summary';
 import { AppSwitcher, useApps } from '@/features/portal/apps';
 import { DayBars, Kpi, KpiRow } from '@/features/portal/charts';
 import { usePortalDashboard } from '@/features/portal/queries';
@@ -13,18 +14,9 @@ import { PORTAL_PATHS } from '@/features/portal/tabs';
 import { usePortal } from '@/features/portal/shell';
 import { Page } from '@/components/layout/Page';
 import { ApiError } from '@/api/client';
-import { formatDate } from '@/lib/format';
 
 const WEEK = '7 days';
 const LINK = 'text-[13px] font-semibold text-brand hover:underline';
-
-function expiry(item: DashboardPackage): { text: string; warn: boolean } {
-  if (item.days_left === null) return { text: 'No end date', warn: false };
-  if (item.days_left < 0) return { text: `Expired ${formatDate(item.expires_at)}`, warn: true };
-  const when = item.days_left === 0 ? 'today' : `in ${item.days_left} ${item.days_left === 1 ? 'day' : 'days'}`;
-  const verb = item.auto_renew ? 'Renews' : 'Ends';
-  return { text: `${verb} ${when} (${formatDate(item.expires_at)})`, warn: item.expires_soon && !item.auto_renew };
-}
 
 function Panel({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
   return (
@@ -81,27 +73,6 @@ function FollowUps({ slug, data }: { slug: string; data: DashboardData }) {
           </Link>
         </li>
       ))}
-    </ul>
-  );
-}
-
-function Packages({ packages }: { packages: DashboardPackage[] }) {
-  if (packages.length === 0) return <p className="text-ink-muted">Your institution has no active package. Contact BdREN to set one up.</p>;
-  return (
-    <ul className="flex flex-col divide-y divide-stroke-muted">
-      {packages.map((item) => {
-        const end = expiry(item);
-        return (
-          <li key={item.subscription_id} className="flex flex-wrap items-baseline justify-between gap-2 py-2">
-            <span>
-              <span className="font-semibold">{item.product.name}</span>
-              <span className="text-ink-muted"> · {item.package.name}</span>
-              {item.status !== 'active' ? <span className="text-ink-muted"> · {item.status === 'trial' ? 'Trial' : 'Payment overdue'}</span> : null}
-            </span>
-            <span className={end.warn ? 'font-semibold text-danger-fg' : 'text-ink-muted'}>{end.text}</span>
-          </li>
-        );
-      })}
     </ul>
   );
 }
@@ -184,15 +155,22 @@ function Body({ data, slug }: { data: DashboardData; slug: string }) {
             </p>
           ) : null}
         </Panel>
-        <Panel title="Packages">
-          <Packages packages={data.packages} />
+        <Panel
+          title="Packages"
+          action={
+            <Link to={PORTAL_PATHS.billing} params={{ slug }} className={LINK}>
+              Billing
+            </Link>
+          }
+        >
+          <PackagesSummary slug={slug} />
         </Panel>
       </div>
     </>
   );
 }
 
-/** Institution admin dashboard: seats, members, this week's usage, follow-ups and package expiry. */
+/** Institution admin dashboard: seats, members, this week's usage, follow-ups, and packages from the billing data. */
 export function PortalDashboardPage() {
   const { institution } = usePortal();
   const [product, setProduct] = useState('');

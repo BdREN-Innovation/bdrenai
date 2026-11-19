@@ -9,6 +9,7 @@ export interface MockRequest {
 }
 
 export type MockReply = { status?: number; body?: unknown };
+/** May return a promise, to hold a reply back until the test resolves it. */
 export type Handler = (request: MockRequest) => MockReply | unknown;
 export type Routes = Record<string, Handler | unknown>;
 
@@ -34,7 +35,7 @@ export function mockApi(routes: Routes) {
     const key = `${method} ${url.pathname}`;
     if (!(key in routes)) return new Response(JSON.stringify({ error: 'not_found', message: key }), { status: 404 });
     const route = routes[key];
-    const result = typeof route === 'function' ? (route as Handler)(request) : route;
+    const result = typeof route === 'function' ? await (route as Handler)(request) : route;
     const { status, body: payload } = isReply(result) ? result : { status: 200, body: result };
     return new Response(payload === undefined ? null : JSON.stringify(payload), {
       status: status ?? 200,

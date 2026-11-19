@@ -4,10 +4,10 @@ import { formatDate, formatMoney } from '@/lib/format';
 import { METHOD_LABEL } from './labels';
 
 /** When the money moved: completion, else the recorded payment date, else when the row was created. */
-export const paymentDate = (payment: Payment) => payment.completed_at ?? payment.payment_date ?? payment.created_at;
+export const paymentDate = (payment: Pick<Payment, 'completed_at' | 'payment_date' | 'created_at'>) => payment.completed_at ?? payment.payment_date ?? payment.created_at;
 
 /** The reference a person would quote: bKash trxID, else the manual reference. */
-export const paymentReference = (payment: Payment) => payment.bkash?.trx_id || payment.reference || '';
+export const paymentReference = (payment: Pick<Payment, 'bkash' | 'reference'>) => payment.bkash?.trx_id || payment.reference || '';
 
 interface PaymentTableProps {
   label: string;

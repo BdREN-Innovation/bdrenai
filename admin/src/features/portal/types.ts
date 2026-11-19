@@ -1,5 +1,23 @@
 /** Shapes of the institution-admin portal API `/api/v1/portal/` (docs/SUPERADMIN_API.md, "Portal API"). */
-import type { ISODate, Invitation, InstitutionCounts, Member, Page, PersonRef, Role, Seats, UUID } from '@/api/types';
+import type {
+  AppRef,
+  BillingInterval,
+  BillingSubscription,
+  ISODate,
+  Invitation,
+  InstitutionCounts,
+  Member,
+  PackageRef,
+  Page,
+  Payment,
+  PersonRef,
+  PurchaseKind,
+  Quote,
+  Refund,
+  Role,
+  Seats,
+  UUID,
+} from '@/api/types';
 
 export type PortalRole = 'member' | 'admin';
 export type MemberTab = 'covered' | 'not_covered' | 'personal_plan';
@@ -187,4 +205,56 @@ export interface Profile {
 export interface CatalogProduct {
   slug: string;
   name: string;
+}
+
+/* Billing (docs/BILLING_API.md, "Portal API additions" and "Portal errors and shapes"). */
+
+/** The portal's payments name people without their email and leave out who made a refund. */
+export interface PortalPayment extends Omit<Payment, 'recorded_by' | 'verified_by' | 'refunds'> {
+  recorded_by: { name: string } | null;
+  verified_by: { name: string } | null;
+  refunds: Omit<Refund, 'created_by'>[];
+}
+
+export interface OfferedPackage extends PackageRef {
+  audience: string;
+  apps: AppRef[];
+}
+
+/** Something the institution can pay for now: a renewal, an upgrade, or a first package. */
+export interface Offer {
+  package: OfferedPackage;
+  kind: PurchaseKind;
+  quote: Quote;
+}
+
+/** A cheaper package a renewing subscription can move to at its next renewal. */
+export interface DowngradeOption {
+  subscription_id: UUID;
+  package: OfferedPackage;
+  amount: string;
+  currency: string;
+  billing_interval: Exclude<BillingInterval, 'free'>;
+  seat_limit: number | null;
+}
+
+export interface PortalBilling {
+  subscriptions: BillingSubscription[];
+  payments: PortalPayment[];
+  bkash_enabled: boolean;
+  offers: Offer[];
+  downgrades: DowngradeOption[];
+}
+
+export interface CheckoutResult {
+  payment: PortalPayment;
+  redirect_url: string;
+}
+
+/** Where the bKash callback sends the browser back: `?payment=<id>&result=…`. */
+export type PaymentResult = 'success' | 'failed' | 'cancelled' | 'pending';
+
+export interface BillingSearch {
+  payment?: string;
+  result?: PaymentResult;
 }

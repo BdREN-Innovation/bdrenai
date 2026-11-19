@@ -24,11 +24,13 @@ import { HelpPage } from '@/pages/help';
 import { AccessGate } from '@/features/portal/access';
 import { PortalShell } from '@/features/portal/shell';
 import { validateMembersSearch } from '@/features/portal/tabs';
+import { validateBillingSearch } from '@/features/portal/billing/rules';
 import { PortalDashboardPage } from '@/pages/portal/dashboard';
 import { PortalMembersPage } from '@/pages/portal/members';
 import { PortalDomainsPage } from '@/pages/portal/domains';
 import { PortalUsagePage } from '@/pages/portal/usage';
 import { PortalHelpPage } from '@/pages/portal/help';
+import { PortalBillingPage } from '@/pages/portal/billing';
 import { PortalHomePage } from '@/pages/portal';
 
 /** Who is signed in decides the console: Shell frames the platform pages; `/portal/…` frames itself (PortalShell). */
@@ -122,12 +124,21 @@ const portalMembersRoute = createRoute({
   component: PortalMembersPage,
 });
 
+/** bKash's callback sends the browser back here with `?payment=<id>&result=success|failed|cancelled|pending`. */
+const portalBillingRoute = createRoute({
+  getParentRoute: () => portalRoute,
+  path: '/billing',
+  validateSearch: validateBillingSearch,
+  component: PortalBillingPage,
+});
+
 const portalTree = portalRoute.addChildren([
   portalIndexRoute,
   portalPage('/dashboard', PortalDashboardPage),
   portalPage('/usage', PortalUsagePage),
   portalMembersRoute,
   portalPage('/domains', PortalDomainsPage),
+  portalBillingRoute,
   portalPage('/help', PortalHelpPage),
 ]);
 

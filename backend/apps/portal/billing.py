@@ -43,6 +43,7 @@ class BillingView(PortalView):
             "payments": [shapes.payment(p, portal=True) for p in payments],
             "bkash_enabled": bkash.enabled(),
             "offers": [shapes.offer(p, q) for p, q in quotes.offers(account)],
+            "downgrades": [shapes.downgrade(s, p, v) for s, p, v in quotes.downgrades(account)],
         })
 
 

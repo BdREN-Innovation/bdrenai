@@ -202,6 +202,28 @@ def offers(account, *, now=None):
     return out
 
 
+def downgrades(account, *, live=None):
+    """Cheaper public packages each live, renewing subscription can be scheduled to move to at its next renewal
+    (the rules of `services.schedule_downgrade` apart from seats): `[(subscription, package, version)]`."""
+    live = live_subscriptions(account) if live is None else live
+    renewing = [s for s in live if s.auto_renew]
+    if not renewing:
+        return []
+    candidates = _public_packages()
+    out = []
+    for sub in renewing:
+        apps, rate = apps_of(sub.package_version), daily_rate(sub.package_version)
+        for package, version in candidates:
+            if package.pk == sub.package_version.package_id or apps_of(version) != apps or daily_rate(version) >= rate:
+                continue
+            try:
+                buyable_version(package, public_only=True, version=version)
+            except ServiceError:
+                continue
+            out.append((sub, package, version))
+    return out
+
+
 def offered(account, package, kind, *, now=None):
     """Whether (`package`, `kind`) is one of `offers(account)`."""
     return any(p.pk == package.pk and q.kind == kind for p, q in offers(account, now=now))

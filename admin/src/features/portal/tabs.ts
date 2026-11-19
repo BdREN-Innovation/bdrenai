@@ -48,7 +48,7 @@ export function searchFromFilter(filter: InvitationFilter): MembersSearch['statu
   return filter === 'pending' ? undefined : filter;
 }
 
-export type PortalPage = 'dashboard' | 'usage' | 'members' | 'domains' | 'help';
+export type PortalPage = 'dashboard' | 'usage' | 'members' | 'domains' | 'billing' | 'help';
 
 /** Route of each console page, so links stay typed. */
 export const PORTAL_PATHS = {
@@ -56,5 +56,6 @@ export const PORTAL_PATHS = {
   usage: '/portal/$slug/usage',
   members: '/portal/$slug/members',
   domains: '/portal/$slug/domains',
+  billing: '/portal/$slug/billing',
   help: '/portal/$slug/help',
 } as const satisfies Record<PortalPage, string>;

@@ -87,6 +87,25 @@ def test_billing_page_offers_renewal_and_upgrades(fake_bkash, boss, admin, accou
     assert {s["package"]["name"] for s in body["subscriptions"]} == {"Basic", "Mind"}
 
 
+def test_billing_page_lists_downgrades_the_portal_can_schedule(no_bkash, admin, account, packages, apps_):
+    c = signed_in(admin.user)
+    assert portal(c, "get", "").json()["downgrades"] == []
+    sub = subscribe(account, packages["standard"])
+    tiny = single(apps_["synapse"], "tiny", 500, seat_limit=2)
+    single(apps_["synapse"], "hidden", 800, is_public=False)
+    single(apps_["synapse"], "premium", 5000)
+    body = portal(c, "get", "").json()
+    found = {(d["package"]["name"], d["subscription_id"]) for d in body["downgrades"]}
+    assert found == {("Basic", str(sub.id)), ("Tiny", str(sub.id))}
+    small = next(d for d in body["downgrades"] if d["package"]["id"] == str(tiny.id))
+    assert small["amount"] == "500.00" and small["currency"] == "BDT" and small["seat_limit"] == 2
+    assert small["billing_interval"] == "monthly"
+    assert small["package"]["apps"] == [{"slug": "synapse", "name": "Synapse"}]
+    assert downgrade(c, packages["basic"]).status_code == 200
+    stop_renewal(subscription=sub)
+    assert portal(c, "get", "").json()["downgrades"] == []
+
+
 # ---------------------------------------------------------------- checkout errors
 
 def test_checkout_errors(fake_bkash, admin, account, packages, apps_):

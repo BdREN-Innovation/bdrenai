@@ -1,4 +1,4 @@
-import { AtSign, ChartColumn, Command, LifeBuoy, Users } from 'lucide-react';
+import { AtSign, ChartColumn, Command, LifeBuoy, ReceiptText, Users } from 'lucide-react';
 import type { ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { SUPPORT_EMAIL, supportMailto } from '@/features/portal/support';
@@ -39,6 +39,10 @@ export function PortalHelpPage() {
             </Tip>
             <Tip icon={AtSign} title="Email domains">
               BdREN manages your sign-in domains. Use Request a domain on the Email domains page to ask for a new one.
+            </Tip>
+            <Tip icon={ReceiptText} title="Billing">
+              Renew or upgrade your package and pay with bKash, one payment per period. A cheaper package can be scheduled for the next
+              renewal. Receipts for every completed payment are on the Billing page.
             </Tip>
             <Tip icon={Command} title="Command menu">
               Press ⌘K (Ctrl K on Windows and Linux) to jump to any page, or to change the theme.

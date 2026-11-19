@@ -157,6 +157,10 @@ transaction with the subscription change, and is idempotent (a completed payment
   "offers": [{"package": {"id","name","kind","audience","apps"},"kind": "renew|upgrade|new","quote": {...}}]}`
   (`offers` = renew of each current subscription, upgrades = public packages covering the same apps with a higher price,
   `new` = public packages when nothing is active).
+  Also `"downgrades": [{"subscription_id","package": {"id","name","kind","audience","apps"},"amount","currency",
+  "billing_interval","seat_limit"}]`: the cheaper public packages each live subscription that still renews can be
+  scheduled to move to (exactly the same apps, lower per-period rate, buyable; the rules of `POST billing/downgrade/`
+  except seats, which the console checks against `seat_limit` and the server re-checks).
 - `POST billing/checkout/` (above). `POST billing/downgrade/` `{"package": "<id>"}` → schedules (sets
   `pending_package_version`; lower price, same apps covered; 400 otherwise) · `DELETE billing/downgrade/` cancels.
 - `GET billing/payments/<id>/receipt/` and `GET billing/payments/<id>/attachment/` for their own institution only.
@@ -185,7 +189,54 @@ and `expiry_reminder_sent_at` is null → one gentle email to the institution's 
 - Configuration gets nothing new here; bKash settings are env only (shown read-only as the mode chip).
 
 The institution console screens (Renew / Upgrade / Pay with bKash, downgrade scheduling, result page after the
-callback, receipts) are built by the institution-admin session against the Portal API above.
+callback, receipts) are built against the Portal API above; see "Institution console" below.
+
+## Institution console (admin SPA, `/admin/portal/<slug>/…`)
+
+- **Billing** (`/portal/$slug/billing`, sidebar group Institution, shown to the institution's `owner`/`admin` roles,
+  the only roles the portal billing API lets in). Code: `admin/src/pages/portal/billing.tsx`,
+  `admin/src/features/portal/billing/` (`rules.ts`, `errors.ts`, `banner.tsx`, `packages.tsx`, `offers.tsx`,
+  `payments.tsx`, `summary.tsx`), hooks `usePortalBilling` / `useCheckout` / `useScheduleDowngrade` /
+  `useCancelDowngrade` in `features/portal/queries.ts`.
+  - Search params `payment` and `result` (`success|failed|cancelled|pending`, anything else is dropped). The page
+    keeps them in state for the result banner and replaces the URL without them at once, so a reload shows no banner.
+    The banner's outcome comes from the named payment's own `status` in `GET billing/`, never from `result` (which
+    only has to be valid for the banner to show): success "Payment received, receipt <number>" with a View receipt
+    link; failed "Payment failed" and the payment's `failure_reason`; cancelled "Payment cancelled, nothing was
+    charged"; pending "Payment is being confirmed": `GET billing/` is read again after 2, 4, 8, 15 and 30 s until the
+    payment leaves `pending` (the banner then shows the new outcome); after the last read it says bKash hasn't
+    confirmed yet and stops polling. With no `payment`, or one not in `payments`, it says "We couldn't find this
+    payment" and points to Payments.
+  - **Your packages**: each non-cancelled subscription with status, current (or, once ended, last) period with its last
+    day inclusive like the offers, "Renew by <last day>" (each period is paid separately; no auto-debit) or "Renewal
+    stopped". A stopped renewal with a renew offer (and bKash on) says paying the renewal turns it back on (the paid
+    renewal sets `auto_renew`); otherwise it links a prefilled email to BdREN. An ended (`expired`) package gets no
+    renew offer from the API, so it points to "Choose a package" when `new` offers exist and to BdREN otherwise. A
+    scheduled switch with **Cancel change**
+    (`DELETE billing/downgrade/?subscription=<id>`), and "Switch to <package> at next renewal (৳… / month)" for each
+    `downgrades` entry (`POST billing/downgrade/`). When seats in use exceed the option's `seat_limit` the dialog
+    warns and does not send.
+  - **Pay for a package**: `offers` grouped Renew / Upgrade / Choose a package, each with amount and period from its
+    quote (last day shown inclusive) and what happens to the current period: renew = next period straight after the
+    current one (or from payment when it has ended); upgrade = full price, a new period starts when the payment
+    completes and the current period ends then; new = starts when the payment completes. **Pay with bKash** opens a
+    confirmation of the quote, then `POST billing/checkout/` once (repeat clicks and Enter are ignored while it
+    runs; the dialog can't be closed until it answers, and billing is re-read from the hook whatever happens) and sets
+    `window.location` to `redirect_url` only when it is `https:` on `bkash.com` or `bka.sh` (or a subdomain; bKash
+    returns `sandbox.payment.bkash.com` / `payment.bkash.com`), without credentials in the URL. Any other address is
+    not followed and the admin is told to contact BdREN. Checkout quotes again on the server, so when the created
+    payment's amount, currency, periods or period days differ from the confirmed quote, the dialog shows the new
+    charge and needs a second "Continue to bKash" (no second POST).
+    Every error code in the tables below has its own message; `checkout_in_progress` names the started payment and
+    offers "See the pending payment" (focuses its row in the history), `seats_exceed_package` shows used/cap.
+  - `bkash_enabled: false`: no Pay buttons; a notice "Paying by bKash isn't available right now. Contact BdREN to pay
+    (noc@bdren.edu.bd) by bank transfer, cheque or another way" with a prefilled email.
+  - **Payments**: date, package and kind, amount (and refunded amount), method, status (with `failure_reason` for
+    failed/cancelled/rejected), bKash trxID or reference, Receipt (`billing/payments/<id>/receipt/`, completed or
+    refunded payments with a receipt number) and Attachment (`billing/payments/<id>/attachment/`).
+- **Dashboard** Packages panel reads `GET billing/`: live packages with "Renew by <last day> (N days left)" (red from
+  14 days before the end), scheduled switch and stopped renewal, a **Renew** link to Billing when a package with a renew
+  offer ends within 14 days, and **Choose a package** when nothing is active.
 
 ## Portal errors and shapes (for the institution console)
 

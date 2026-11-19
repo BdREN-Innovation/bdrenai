@@ -107,13 +107,25 @@ def subscription(sub):
     }
 
 
-def offer(package, quote):
+def offered_package(package, version):
     return {
-        "package": {
-            **package_ref(package),
-            "audience": package.audience,
-            "apps": [app_ref(p) for p in quote.package_version.products.all()],
-        },
-        "kind": quote.kind,
-        "quote": quote.body(),
+        **package_ref(package),
+        "audience": package.audience,
+        "apps": [app_ref(p) for p in version.products.all()],
+    }
+
+
+def offer(package, quote):
+    return {"package": offered_package(package, quote.package_version), "kind": quote.kind, "quote": quote.body()}
+
+
+def downgrade(sub, package, version):
+    """A package the subscription can move to at its next renewal (portal `downgrades`)."""
+    return {
+        "subscription_id": str(sub.id),
+        "package": offered_package(package, version),
+        "amount": money(version.price),
+        "currency": version.currency,
+        "billing_interval": version.billing_interval,
+        "seat_limit": version.seat_limit,
     }

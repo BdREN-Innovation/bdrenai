@@ -1,5 +1,5 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { ImportResponse, ImportRowInput, Member } from '@/api/types';
+import type { BillingSubscription, ImportResponse, ImportRowInput, Member, PurchaseKind } from '@/api/types';
 import type { InvitationFilter } from './tabs';
 import type * as t from './types';
 import { CATALOG_PATH, PORTAL_ROOT, PROFILE_PATH, portalApi } from './api';
@@ -19,6 +19,7 @@ export const portalKeys = {
   members: (slug: string, params: MembersQuery) => ['portal', slug, 'members', params] as const,
   invitations: (slug: string, params: InvitationsQuery) => ['portal', slug, 'invitations', params] as const,
   domains: (slug: string) => ['portal', slug, 'domains'] as const,
+  billing: (slug: string) => ['portal', slug, 'billing'] as const,
 };
 
 export interface UsageQuery extends t.UsageParams {
@@ -114,6 +115,14 @@ export function usePortalDomains(slug: string) {
   return useQuery({
     queryKey: portalKeys.domains(slug),
     queryFn: ({ signal }) => portalApi(slug).get<t.DomainsReport>('domains/', undefined, signal),
+  });
+}
+
+/** Subscriptions, offers with their quotes, downgrade options and payments of the institution. */
+export function usePortalBilling(slug: string) {
+  return useQuery({
+    queryKey: portalKeys.billing(slug),
+    queryFn: ({ signal }) => portalApi(slug).get<t.PortalBilling>('billing/', undefined, signal),
   });
 }
 
@@ -246,3 +255,34 @@ export function usePortalImport(slug: string) {
     onSuccess: (_result, body) => (body.dry_run ? undefined : client.invalidateQueries({ queryKey: portalKeys.all })),
   });
 }
+
+/** Opens a bKash payment for an offer; the caller sends the browser to `redirect_url`. */
+/**
+ * Opens a bKash payment. Billing is re-read whatever the outcome, from the hook so it still happens when the dialog
+ * that started the checkout is gone (per-call callbacks don't run after unmount).
+ */
+export function useCheckout(slug: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { package: string; kind: PurchaseKind }) => portalApi(slug).post<t.CheckoutResult>('billing/checkout/', body),
+    onSettled: () => void client.invalidateQueries({ queryKey: portalKeys.billing(slug) }),
+  });
+}
+
+type SubscriptionChange = { subscription: BillingSubscription };
+
+function useBillingWrite<TBody>(slug: string, fn: (body: TBody) => Promise<SubscriptionChange>) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: fn,
+    onSuccess: () => client.invalidateQueries({ queryKey: portalKeys.billing(slug) }),
+  });
+}
+
+/** Schedules the move to a cheaper package (by id) at the next renewal. */
+export const useScheduleDowngrade = (slug: string) =>
+  useBillingWrite(slug, (pkg: string) => portalApi(slug).post<SubscriptionChange>('billing/downgrade/', { package: pkg }));
+
+/** Clears the scheduled change of one subscription (by id). */
+export const useCancelDowngrade = (slug: string) =>
+  useBillingWrite(slug, (subscription: string) => portalApi(slug).delete<SubscriptionChange>('billing/downgrade/', { subscription }));

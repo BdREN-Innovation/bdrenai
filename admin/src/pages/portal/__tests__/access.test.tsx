@@ -101,6 +101,7 @@ describe('access gate', () => {
       ['Usage', '/admin/portal/du/usage'],
       ['Members', '/admin/portal/du/members'],
       ['Email domains', '/admin/portal/du/domains'],
+      ['Billing', '/admin/portal/du/billing'],
       ['Help', '/admin/portal/du/help'],
     ]);
     expect(within(nav).getByRole('link', { name: 'Dashboard' })).toHaveAttribute('aria-current', 'page');
