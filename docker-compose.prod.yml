@@ -1,5 +1,5 @@
 # Production overlay: run with `docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d`
-# Does NOT load docker-compose.override.yml, so PostgreSQL and Redis have zero published ports.
+# Its explicit -f files override COMPOSE_FILE, so the local docker-compose-dev.yaml is not loaded and PostgreSQL and Redis have zero published ports.
 services:
   nginx:
     ports:
