@@ -201,7 +201,7 @@ def test_downgrade_errors(no_bkash, admin, member, account, packages, apps_):
 
 PORTAL_ENDPOINTS = [
     ("get", ""), ("post", "checkout/"), ("post", "downgrade/"), ("delete", "downgrade/"),
-    ("get", "payments/{pk}/receipt/"), ("get", "payments/{pk}/attachment/"),
+    ("get", "payments/{pk}/receipt/"), ("get", "payments/{pk}/attachment/"), ("post", "payments/{pk}/abandon/"),
 ]
 
 

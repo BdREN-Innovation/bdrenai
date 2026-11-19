@@ -64,6 +64,8 @@ LEGACY_METHODS = {
     "manual_offline": Method.OTHER, "bank_transfer": Method.BANK_TRANSFER, "institutional_invoice": Method.OTHER,
 }
 CANCELLED_MESSAGE = "Cancelled on the bKash page; nothing was charged."
+ABANDONED_MESSAGE = "Abandoned by the institution admin"
+NOT_APPLIED_NOTE = "Paid after a newer purchase of the same apps; no subscription was changed. BdREN refunds it."
 
 
 def pause(seconds):
@@ -99,12 +101,17 @@ def load_payment(pk, *, account=None):
     return payment
 
 
-def _lock(pk):
-    return (
+def _lock(pk, *, account=None):
+    qs = (
         PaymentRecord.objects.select_for_update(of=("self",))
         .select_related("account", "package_version__package", "recorded_by", "subscription")
-        .get(pk=pk)
     )
+    if account is None:
+        return qs.get(pk=pk)
+    payment = qs.filter(pk=pk, account=account).first()
+    if payment is None:
+        raise not_found("No payment with this id.")
+    return payment
 
 
 def audit(payment, action, *, actor=None, ip_address=None, **values):
@@ -163,11 +170,39 @@ def _apply(payment, actor):
     )
 
 
+def _paid_after(payment):
+    """True when a payment created after this one was paid and its live subscription covers any of this payment's
+    apps (a renewal's own subscription excepted). Applying this payment then would cancel that newer purchase."""
+    apps = quotes.apps_of(payment.package_version)
+    newer = (
+        PaymentRecord.objects.filter(
+            account_id=payment.account_id, status__in=PAID, created_at__gt=payment.created_at,
+            subscription__status__in=quotes.LIVE,
+        )
+        .exclude(pk=payment.pk)
+        .select_related("subscription__package_version__package")
+        .prefetch_related(Prefetch("subscription__package_version__products", queryset=Product.objects.only("id")))
+    )
+    own = payment.subscription_id if payment.kind == Kind.RENEW else None
+    return any(
+        other.subscription_id != own and apps & quotes.apps_of(other.subscription.package_version)
+        for other in newer
+    )
+
+
 def complete(payment, *, actor=None, ip_address=None, source, email_to=None):
-    """Completes a locked `pending` payment (no-op otherwise). Call inside transaction.atomic()."""
+    """Completes a locked `pending` payment (no-op otherwise). Call inside transaction.atomic(). A bKash payment
+    that settles after a newer purchase of the same apps was paid (abandoned, or reconciled late) records the money
+    but changes no subscription: BdREN refunds it (`NOT_APPLIED_NOTE`)."""
     if payment.status != Status.PENDING:
         return payment
-    payment.subscription = _apply(payment, actor)
+    applied = not (payment.method == Method.BKASH and _paid_after(payment))
+    if applied:
+        payment.subscription = _apply(payment, actor)
+    else:
+        log.warning("bkash payment paid after a newer purchase, not applied payment=%s", payment.id)
+        payment.subscription = None
+        payment.notes = f"{payment.notes}\n{NOT_APPLIED_NOTE}".strip()
     now = timezone.now()
     payment.status = Status.COMPLETED
     payment.completed_at = now
@@ -175,20 +210,21 @@ def complete(payment, *, actor=None, ip_address=None, source, email_to=None):
     payment.failure_reason = ""
     payment.save()
     audit(payment, "payment.completed", actor=actor, ip_address=ip_address, source=source,
-          receipt_number=payment.receipt_number, subscription_id=str(payment.subscription_id))
+          receipt_number=payment.receipt_number,
+          subscription_id=str(payment.subscription_id) if applied else None, not_applied=None if applied else True)
     if email_to is not None:
         receipts.email_receipt(load_payment(payment.pk), email_to)
     return payment
 
 
-def _close(payment, status, reason, *, actor=None, ip_address=None, source, bkash_status=None):
+def _close(payment, status, reason, *, actor=None, ip_address=None, source, bkash_status=None, action=None):
     """Marks a locked pending payment failed, cancelled or rejected."""
     payment.status = status
     payment.failure_reason = (reason or "")[:500]
     if bkash_status:
         payment.bkash_status = bkash_status[:32]
     payment.save(update_fields=["status", "failure_reason", "bkash_status", "updated_at"])
-    audit(payment, f"payment.{status}", actor=actor, ip_address=ip_address, source=source, reason=reason)
+    audit(payment, action or f"payment.{status}", actor=actor, ip_address=ip_address, source=source, reason=reason)
     return payment
 
 
@@ -312,15 +348,11 @@ def find_institution(slug):
 
 # ---------------------------------------------------------------- bKash checkout
 
-def resume_url(payment):
-    """bKash's checkout page for a pending payment that bKash still lists as Initiated, or None."""
-    resumable = payment.bkash_payment_id and payment.bkash_status == bkash.INITIATED
-    return payment.bkash_checkout_url if resumable and bkash.is_checkout_url(payment.bkash_checkout_url) else None
-
-
 def open_checkout(org, user, package, kind, *, ip_address=None):
     """Validates and stores a pending bKash payment. Call with the organization locked (portal `managing`), so two
-    admins cannot start two checkouts at once."""
+    admins cannot start two checkouts at once. `checkout_in_progress` never offers a link back to bKash
+    (`redirect_url` is always null): bKash's checkout URL works once, and reopening it shows "Invalid page access
+    request" even while the payment is still `Initiated`. The admin waits or abandons the payment instead."""
     account = organization_account(org)
     started = (
         payment_queryset().filter(
@@ -332,7 +364,7 @@ def open_checkout(org, user, package, kind, *, ip_address=None):
         raise ServiceError(
             "checkout_in_progress",
             "A bKash payment for this institution was started a few minutes ago. Finish it or wait a few minutes.",
-            status=409, extra={"payment": shapes.payment(started, portal=True), "redirect_url": resume_url(started)},
+            status=409, extra={"payment": shapes.payment(started, portal=True), "redirect_url": None},
         )
     quote = quotes.quote(account, package, kind, public_only=True)
     if not quotes.offered(account, package, kind):
@@ -345,8 +377,8 @@ def open_checkout(org, user, package, kind, *, ip_address=None):
 
 
 def send_to_bkash(payment, *, actor=None, ip_address=None):
-    """Creates the bKash payment for a pending checkout; returns bKash's checkout URL. bKash errors leave the
-    payment `failed` and raise 502 `bkash_error`."""
+    """Creates the bKash payment for a pending checkout; returns bKash's checkout URL, or None when the payment was
+    abandoned meanwhile. bKash errors leave the payment `failed` and raise 502 `bkash_error`."""
     org = payment.account.organization
     try:
         data = bkash.create_payment(
@@ -359,10 +391,15 @@ def send_to_bkash(payment, *, actor=None, ip_address=None):
                 _close(locked, Status.FAILED, f"bKash: {exc.message}", actor=actor, ip_address=ip_address,
                        source="portal")
         raise ServiceError("bkash_error", "bKash could not start the payment. Try again later.", status=502) from None
-    PaymentRecord.objects.filter(pk=payment.pk).update(
-        bkash_payment_id=data["paymentID"], bkash_status=(data.get("transactionStatus") or bkash.INITIATED)[:32],
-        bkash_checkout_url=data["bkashURL"][:1000], updated_at=timezone.now(),
-    )
+    with transaction.atomic():
+        locked = _lock(payment.pk)
+        locked.bkash_payment_id = data["paymentID"]
+        locked.bkash_status = (data.get("transactionStatus") or bkash.INITIATED)[:32]
+        locked.bkash_checkout_url = data["bkashURL"][:1000]
+        locked.save(update_fields=["bkash_payment_id", "bkash_status", "bkash_checkout_url", "updated_at"])
+    if locked.status != Status.PENDING:
+        # Abandoned while bKash was creating it: the ids are kept so a payer who pays anyway is still recorded.
+        return None
     return data["bkashURL"]
 
 
@@ -400,9 +437,10 @@ def _completed_with(payment, data, *, source):
     return complete(payment, source=source, email_to=payment.recorded_by)
 
 
-def _settle(payment, *, source):
+def _settle(payment, *, source, hold=False):
     """Executes a locked pending bKash payment, then asks for its status, and completes or fails it. It stays
-    `pending` (for reconciliation) when bKash could not be reached."""
+    `pending` (for reconciliation) when bKash could not be reached. With `hold`, a failed execute never fails the
+    payment by itself: it stays `pending` unless bKash's status names a final state."""
     exec_error = None
     try:
         data = bkash.execute(payment.bkash_payment_id)
@@ -412,16 +450,71 @@ def _settle(payment, *, source):
         exec_error = exc
     data, status_error = _status_with_retries(payment.bkash_payment_id)
     if data is None:
-        if exec_error is not None and exec_error.code not in UNREACHABLE and status_error.code not in UNREACHABLE:
+        if (not hold and exec_error is not None and exec_error.code not in UNREACHABLE
+                and status_error.code not in UNREACHABLE):
             return _close(payment, Status.FAILED, f"bKash: {exec_error.message}", source=source)
         log.warning("bkash payment unresolved payment=%s", payment.id)
         return payment
     transaction_status = data.get("transactionStatus") or ""
     if transaction_status == bkash.COMPLETED:
         return _completed_with(payment, data, source=source)
+    if hold and transaction_status == bkash.INITIATED:
+        return payment
     message = exec_error.message if exec_error is not None else f"payment {transaction_status or 'not completed'}"
     closing = Status.CANCELLED if transaction_status == "Cancelled" else Status.FAILED
     return _close(payment, closing, f"bKash: {message}", source=source, bkash_status=transaction_status)
+
+
+def _approved(data):
+    """bKash's status says the payer approved but nobody executed the payment yet."""
+    return data.get("transactionStatus") == bkash.INITIATED and data.get("verificationStatus") == "Complete"
+
+
+def _awaiting_payer(data):
+    return data.get("transactionStatus") == bkash.INITIATED and not _approved(data)
+
+
+def _settle_from_status(payment, data, *, source, hold=False):
+    """Settles a locked pending bKash payment from bKash's status answer: `Completed` completes it, approved but
+    not executed is executed (`_settle`), `Cancelled` cancels it and any other final state fails it. A payment still
+    awaiting the payer is returned untouched; the caller decides (reconcile waits, abandon cancels)."""
+    transaction_status = data.get("transactionStatus") or ""
+    if transaction_status == bkash.COMPLETED:
+        return _completed_with(payment, data, source=source)
+    if transaction_status == bkash.INITIATED:
+        return _settle(payment, source=source, hold=hold) if _approved(data) else payment
+    if transaction_status == "Cancelled":
+        return _close(payment, Status.CANCELLED, CANCELLED_MESSAGE, source=source, bkash_status=transaction_status)
+    return _close(payment, Status.FAILED, f"bKash: payment {transaction_status or 'not completed'}",
+                  source=source, bkash_status=transaction_status)
+
+
+def is_abandoned(payment):
+    return (payment.method == Method.BKASH and payment.status == Status.CANCELLED
+            and payment.failure_reason == ABANDONED_MESSAGE)
+
+
+def _recover_abandoned(payment, *, source):
+    """A locked payment the institution abandoned that bKash later reports paid (or approved) is completed after
+    all: the customer paid, so the money is recorded. Anything else leaves it cancelled (bKash's latest state is
+    noted so reconciliation stops asking once bKash has moved on)."""
+    if not payment.bkash_payment_id:
+        return payment
+    data, _ = _status_with_retries(payment.bkash_payment_id)
+    if data is None:
+        return payment
+    transaction_status = (data.get("transactionStatus") or "")[:32]
+    if transaction_status != bkash.COMPLETED and not _approved(data):
+        if transaction_status and transaction_status != payment.bkash_status:
+            payment.bkash_status = transaction_status
+            payment.save(update_fields=["bkash_status", "updated_at"])
+        return payment
+    log.warning("bkash abandoned payment paid after all payment=%s", payment.id)
+    payment.status = Status.PENDING
+    _settle_from_status(payment, data, source=source, hold=True)
+    if payment.status == Status.PENDING:
+        payment.status = Status.CANCELLED
+    return payment
 
 
 def callback_result(payment):
@@ -443,6 +536,8 @@ def handle_callback(payment_id, outcome):
         return None
     with transaction.atomic():
         payment = _lock(pk)
+        if outcome == "success" and is_abandoned(payment):
+            return _recover_abandoned(payment, source="bkash_callback")
         if payment.status != Status.PENDING:
             return payment
         if outcome == "cancel":
@@ -454,9 +549,19 @@ def handle_callback(payment_id, outcome):
         return _settle(payment, source="bkash_callback")
 
 
+def _locked_unless_busy(pk, status):
+    return (
+        PaymentRecord.objects.select_for_update(skip_locked=True, of=("self",))
+        .select_related("account", "package_version__package", "recorded_by", "subscription")
+        .filter(pk=pk, status=status).first()
+    )
+
+
 def reconcile(now=None, batch=100):
-    """One pass over pending bKash payments older than 10 minutes (docs/BILLING_API.md, bKash flow 3). Safe to run
-    concurrently: each payment is locked with SKIP LOCKED. Returns counts by outcome."""
+    """One pass over pending bKash payments older than 10 minutes (docs/BILLING_API.md, bKash flow 3), then over
+    payments abandoned in the last 24 hours that bKash still listed as Initiated (a payer who approved after the
+    admin abandoned is completed after all; `rechecked` counts them). Safe to run concurrently: each payment is
+    locked with SKIP LOCKED. Returns counts by outcome."""
     now = now or timezone.now()
     counts = {"checked": 0, "completed": 0, "failed": 0, "cancelled": 0, "waiting": 0}
     ids = list(
@@ -466,20 +571,36 @@ def reconcile(now=None, batch=100):
     )
     for pk in ids:
         with transaction.atomic():
-            payment = (
-                PaymentRecord.objects.select_for_update(skip_locked=True, of=("self",))
-                .select_related("account", "package_version__package", "recorded_by", "subscription")
-                .filter(pk=pk, status=Status.PENDING).first()
-            )
+            payment = _locked_unless_busy(pk, Status.PENDING)
             if payment is None:
                 continue
             counts["checked"] += 1
             _reconcile_one(payment, now)
             outcome = "waiting" if payment.status == Status.PENDING else payment.status
             counts[outcome] = counts.get(outcome, 0) + 1
-    if counts["checked"]:
+    _recheck_abandoned(now, batch, counts)
+    if counts["checked"] or counts.get("rechecked"):
         log.info("bkash reconcile %s", " ".join(f"{k}={v}" for k, v in counts.items()))
     return counts
+
+
+def _recheck_abandoned(now, batch, counts):
+    ids = list(
+        PaymentRecord.objects.filter(
+            method=Method.BKASH, status=Status.CANCELLED, failure_reason=ABANDONED_MESSAGE,
+            bkash_status=bkash.INITIATED, bkash_payment_id__isnull=False,
+            created_at__lte=now - RECONCILE_AFTER, created_at__gt=now - GIVE_UP_AFTER,
+        ).order_by("created_at").values_list("pk", flat=True)[:batch]
+    )
+    for pk in ids:
+        with transaction.atomic():
+            payment = _locked_unless_busy(pk, Status.CANCELLED)
+            if payment is None or not is_abandoned(payment):
+                continue
+            counts["rechecked"] = counts.get("rechecked", 0) + 1
+            _recover_abandoned(payment, source="reconcile")
+            if payment.status != Status.CANCELLED:
+                counts[payment.status] = counts.get(payment.status, 0) + 1
 
 
 def _reconcile_one(payment, now):
@@ -491,23 +612,56 @@ def _reconcile_one(payment, now):
         if not expired:
             return payment
         return _close(payment, Status.FAILED, f"bKash: {error.message if error else 'no answer'}", source="reconcile")
-    transaction_status = data.get("transactionStatus") or ""
-    if transaction_status == bkash.COMPLETED:
-        return _completed_with(payment, data, source="reconcile")
-    if transaction_status == bkash.INITIATED:
-        if data.get("verificationStatus") == "Complete":
-            return _settle(payment, source="reconcile")
-        if expired:
-            return _close(payment, Status.FAILED, "Not paid within 24 hours.", source="reconcile",
-                          bkash_status=transaction_status)
-        payment.bkash_status = transaction_status
-        payment.save(update_fields=["bkash_status", "updated_at"])
-        return payment
-    if transaction_status == "Cancelled":
-        return _close(payment, Status.CANCELLED, CANCELLED_MESSAGE, source="reconcile",
+    if not _awaiting_payer(data):
+        return _settle_from_status(payment, data, source="reconcile")
+    transaction_status = data.get("transactionStatus")
+    if expired:
+        return _close(payment, Status.FAILED, "Not paid within 24 hours.", source="reconcile",
                       bkash_status=transaction_status)
-    return _close(payment, Status.FAILED, f"bKash: payment {transaction_status or 'not completed'}",
-                  source="reconcile", bkash_status=transaction_status)
+    payment.bkash_status = transaction_status
+    payment.save(update_fields=["bkash_status", "updated_at"])
+    return payment
+
+
+# ---------------------------------------------------------------- abandoning a pending bKash payment
+
+ABANDON_RESULTS = {Status.COMPLETED: "completed", Status.CANCELLED: "cancelled", Status.FAILED: "failed"}
+
+
+def abandon(pk, *, actor, source, account=None, ip_address=None):
+    """`POST …/payments/<id>/abandon/`: gives up a pending bKash payment, but never loses money. Under the payment's
+    lock bKash is asked for the real state first: paid (or approved, then executed here) completes the payment
+    exactly as the callback would; a final bKash state closes it; only a payment still awaiting the payer is
+    cancelled as abandoned. Returns `(payment, result)`; 409 `not_pending`, 409 `payment_confirming` (approved but
+    execute failed: left pending for reconciliation) and 502 `bkash_error` (bKash unreachable; nothing changed)."""
+    problem = None
+    with transaction.atomic():
+        payment = _lock(pk, account=account)
+        if payment.status != Status.PENDING or payment.method != Method.BKASH:
+            raise ServiceError("not_pending", "Only a pending bKash payment can be abandoned.", status=409)
+        data = None
+        if payment.bkash_payment_id:
+            data, _ = _status_with_retries(payment.bkash_payment_id)
+            if data is None:
+                problem = ServiceError(
+                    "bkash_error", "bKash did not answer, so the payment was left as it is. Try again later.",
+                    status=502,
+                )
+        if problem is None:
+            if data is None or _awaiting_payer(data):
+                _close(payment, Status.CANCELLED, ABANDONED_MESSAGE, actor=actor, ip_address=ip_address,
+                       source=source, bkash_status=(data or {}).get("transactionStatus"), action="payment.abandoned")
+            else:
+                _settle_from_status(payment, data, source=source, hold=True)
+            if payment.status == Status.PENDING:
+                problem = ServiceError(
+                    "payment_confirming",
+                    "The payer approved this payment and bKash is still confirming it. It will settle shortly.",
+                    status=409,
+                )
+    if problem is not None:
+        raise problem
+    return payment, ABANDON_RESULTS.get(payment.status, payment.status)
 
 
 # ---------------------------------------------------------------- manual payments

@@ -4,6 +4,7 @@ from datetime import timedelta
 from decimal import Decimal
 
 import pytest
+from django.test import Client
 from django.utils import timezone
 
 from apps.audit.models import AuditLog
@@ -24,22 +25,26 @@ from tests.billing_support import (  # noqa: F401  (fixtures)
     admin,
     age,
     apps_,
+    boss,
     created,
     error,
     executed,
     fake_bkash,
     invalid_state,
+    manual_body,
     member,
     network_error,
     no_bkash,
     not_found,
     org,
+    other_org,
     owner,
     packages,
     portal,
     signed_in,
     status_of,
     subscribe,
+    superadmin,
 )
 
 pytestmark = pytest.mark.django_db
@@ -293,6 +298,8 @@ def test_callback_for_an_unknown_payment_goes_to_the_console(fake_bkash, client)
 
 
 def test_checkout_in_progress_returns_the_pending_payment(fake_bkash, admin, packages):
+    """bKash's checkout URL works once (reopening it shows "Invalid page access request"), so the 409 never hands
+    it back: `redirect_url` is always null, even while bKash still lists the payment as Initiated."""
     fake_bkash.on("checkout/create", created())
     c = signed_in(admin.user)
     checkout(c, packages["basic"])
@@ -300,19 +307,11 @@ def test_checkout_in_progress_returns_the_pending_payment(fake_bkash, admin, pac
     assert error(r) == (409, "checkout_in_progress")
     payment = PaymentRecord.objects.get()
     assert r.json()["payment"]["id"] == str(payment.id) and r.json()["message"]
-    assert r.json()["redirect_url"] == created()["bkashURL"]
+    assert "redirect_url" in r.json() and r.json()["redirect_url"] is None
+    assert payment.bkash_status == "Initiated" and payment.bkash_checkout_url == created()["bkashURL"]
     age(payment, minutes=11)
     fake_bkash.on("checkout/create", created(payment_id="TR0011second"))
     assert checkout(c, packages["basic"]).status_code == 201
-
-
-def test_checkout_in_progress_offers_no_link_once_bkash_moved_on(fake_bkash, admin, packages):
-    fake_bkash.on("checkout/create", created())
-    c = signed_in(admin.user)
-    checkout(c, packages["basic"])
-    PaymentRecord.objects.update(bkash_status="Cancelled")
-    r = checkout(c, packages["basic"])
-    assert error(r) == (409, "checkout_in_progress") and r.json()["redirect_url"] is None
 
 
 @pytest.mark.parametrize("url", [
@@ -415,3 +414,280 @@ def test_reconcile_command_runs_one_pass(fake_bkash, admin, packages):
     call_command("reconcile_bkash", stdout=out)
     payment.refresh_from_db()
     assert payment.status == Status.CANCELLED and "cancelled=1" in out.getvalue()
+
+
+# ---------------------------------------------------------------- abandoning a pending bKash payment
+
+def abandon(client, payment, slug="sau"):
+    return portal(client, "post", f"payments/{payment.id}/abandon/", slug=slug)
+
+
+def started(fake_bkash, admin, packages, package="basic"):
+    fake_bkash.on("checkout/create", created())
+    c = signed_in(admin.user)
+    assert checkout(c, packages[package]).status_code == 201
+    return c, PaymentRecord.objects.get()
+
+
+def test_abandon_cancels_a_payment_awaiting_the_payer_and_a_new_checkout_starts_at_once(fake_bkash, admin, packages):
+    c, payment = started(fake_bkash, admin, packages)
+    fake_bkash.on("checkout/payment/status", status_of("Initiated", verification="Incomplete"))
+    r = abandon(c, payment)
+    assert r.status_code == 200, r.json()
+    assert r.json()["result"] == "cancelled" and r.json()["payment"]["id"] == str(payment.id)
+    assert r.json()["payment"]["status"] == "cancelled"
+    assert r.json()["payment"]["failure_reason"] == "Abandoned by the institution admin"
+    payment.refresh_from_db()
+    assert (payment.status, payment.bkash_status) == (Status.CANCELLED, "Initiated")
+    assert "checkout/execute" not in fake_bkash.paths()
+    entry = AuditLog.objects.get(action="payment.abandoned", target_id=str(payment.id))
+    assert entry.actor == admin.user and entry.metadata["source"] == "portal"
+    assert not AuditLog.objects.filter(action="payment.cancelled", target_id=str(payment.id)).exists()
+
+    fake_bkash.on("checkout/create", created(payment_id="TR0011second"))
+    again = checkout(c, packages["basic"])
+    assert again.status_code == 201, again.json()
+    assert PaymentRecord.objects.filter(status=Status.PENDING).count() == 1
+
+
+def test_abandon_completes_a_payment_bkash_says_is_paid(fake_bkash, admin, packages):
+    c, payment = started(fake_bkash, admin, packages)
+    fake_bkash.on("checkout/payment/status", status_of("Completed"))
+    r = abandon(c, payment)
+    assert r.status_code == 200, r.json()
+    assert r.json()["result"] == "completed" and r.json()["payment"]["status"] == "completed"
+    payment.refresh_from_db()
+    assert payment.status == Status.COMPLETED and payment.receipt_number.startswith("BDR-")
+    assert (payment.bkash_trx_id, payment.bkash_payer_account) == (TRX_ID, "********378")
+    assert payment.subscription.package_version.package_id == packages["basic"].pk
+    assert AuditLog.objects.filter(action="payment.completed", target_id=str(payment.id)).count() == 1
+    assert not AuditLog.objects.filter(action="payment.abandoned").exists()
+    assert "checkout/execute" not in fake_bkash.paths()
+
+
+def test_abandon_executes_a_payment_the_payer_approved(fake_bkash, admin, packages):
+    c, payment = started(fake_bkash, admin, packages)
+    fake_bkash.on("checkout/payment/status", status_of("Initiated", verification="Complete"))
+    fake_bkash.on("checkout/execute", executed())
+    r = abandon(c, payment)
+    assert r.status_code == 200 and r.json()["result"] == "completed"
+    payment.refresh_from_db()
+    assert payment.status == Status.COMPLETED and payment.bkash_trx_id == TRX_ID and payment.subscription_id
+    assert fake_bkash.paths().count("checkout/execute") == 1
+
+
+def test_abandon_leaves_an_approved_payment_pending_when_execute_fails(fake_bkash, admin, packages):
+    c, payment = started(fake_bkash, admin, packages)
+    fake_bkash.on("checkout/payment/status", status_of("Initiated", verification="Complete"))
+    fake_bkash.on("checkout/execute", network_error())
+    r = abandon(c, payment)
+    assert error(r) == (409, "payment_confirming") and r.json()["message"]
+    payment.refresh_from_db()
+    assert payment.status == Status.PENDING and payment.failure_reason == "" and payment.receipt_number is None
+    assert not AuditLog.objects.filter(action__in=["payment.abandoned", "payment.failed"]).exists()
+
+    age(payment, minutes=11)
+    fake_bkash.on("checkout/execute", executed())
+    assert billing.reconcile()["completed"] == 1
+    payment.refresh_from_db()
+    assert payment.status == Status.COMPLETED
+
+
+def test_abandon_changes_nothing_when_bkash_is_unreachable(fake_bkash, admin, packages):
+    c, payment = started(fake_bkash, admin, packages)
+    fake_bkash.on("checkout/payment/status", network_error())
+    r = abandon(c, payment)
+    assert error(r) == (502, "bkash_error")
+    payment.refresh_from_db()
+    assert (payment.status, payment.failure_reason, payment.bkash_status) == (Status.PENDING, "", "Initiated")
+    assert not AuditLog.objects.filter(action="payment.abandoned").exists()
+
+
+@pytest.mark.parametrize(("bkash_state", "status", "result"), [
+    ("Cancelled", Status.CANCELLED, "cancelled"), ("Failed", Status.FAILED, "failed"),
+    ("Expired", Status.FAILED, "failed"),
+])
+def test_abandon_follows_a_final_bkash_state(fake_bkash, admin, packages, bkash_state, status, result):
+    c, payment = started(fake_bkash, admin, packages)
+    fake_bkash.on("checkout/payment/status", status_of(bkash_state, verification="Incomplete"))
+    r = abandon(c, payment)
+    assert r.status_code == 200 and r.json()["result"] == result
+    payment.refresh_from_db()
+    assert (payment.status, payment.bkash_status) == (status, bkash_state)
+    assert payment.failure_reason != "Abandoned by the institution admin"
+
+
+def test_abandon_twice_is_not_pending(fake_bkash, admin, packages):
+    c, payment = started(fake_bkash, admin, packages)
+    fake_bkash.on("checkout/payment/status", status_of("Initiated", verification="Incomplete"))
+    assert abandon(c, payment).status_code == 200
+    assert error(abandon(c, payment)) == (409, "not_pending")
+    assert AuditLog.objects.filter(action="payment.abandoned").count() == 1
+
+
+def test_abandon_is_only_for_pending_bkash_payments(fake_bkash, boss, admin, packages):
+    c, payment = started(fake_bkash, admin, packages)
+    fake_bkash.on("checkout/execute", executed())
+    callback(Client())
+    payment.refresh_from_db()
+    assert payment.status == Status.COMPLETED
+    assert error(abandon(c, payment)) == (409, "not_pending")
+
+    r = superadmin(signed_in(boss), "post", "billing/payments/manual/",
+                   manual_body(packages["mind"], amount="2000.00", pending=True))
+    assert r.status_code == 201, r.json()
+    manual = PaymentRecord.objects.get(pk=r.json()["id"])
+    assert manual.status == Status.PENDING
+    assert error(abandon(c, manual)) == (409, "not_pending")
+    assert error(superadmin(signed_in(boss), "post", f"billing/payments/{manual.id}/abandon/")) == (409, "not_pending")
+    manual.refresh_from_db()
+    assert manual.status == Status.PENDING
+
+
+def test_abandon_permissions(fake_bkash, admin, member, other_org, packages):
+    c, payment = started(fake_bkash, admin, packages)
+    fake_bkash.on("checkout/payment/status", status_of("Initiated", verification="Incomplete"))
+    assert error(abandon(Client(), payment)) == (401, "not_authenticated")
+    assert error(abandon(signed_in(member.user), payment)) == (403, "not_institution_admin")
+    outsider = signed_in(other_org.memberships.get().user)
+    assert error(abandon(outsider, payment)) == (404, "not_found")
+    assert error(abandon(outsider, payment, slug="buet")) == (404, "not_found")
+    payment.refresh_from_db()
+    assert payment.status == Status.PENDING
+    assert "checkout/payment/status" not in fake_bkash.paths()
+
+
+def test_superadmin_abandons_any_institutions_payment(fake_bkash, boss, admin, packages):
+    _, payment = started(fake_bkash, admin, packages)
+    fake_bkash.on("checkout/payment/status", status_of("Initiated", verification="Incomplete"))
+    r = superadmin(signed_in(boss), "post", f"billing/payments/{payment.id}/abandon/")
+    assert r.status_code == 200, r.json()
+    assert r.json()["result"] == "cancelled" and r.json()["payment"]["status"] == "cancelled"
+    assert r.json()["payment"]["recorded_by"]["email"] == "admin@sau.ac.bd"
+    entry = AuditLog.objects.get(action="payment.abandoned", target_id=str(payment.id))
+    assert entry.actor == boss and entry.metadata["source"] == "superadmin"
+    assert error(superadmin(signed_in(admin.user), "post", f"billing/payments/{payment.id}/abandon/")) == (
+        403, "not_superadmin")
+
+
+def test_a_payment_paid_after_it_was_abandoned_is_completed_once(fake_bkash, admin, packages):
+    """Rule: abandoning only cancels locally. If bKash later says the payer paid (the callback arrives, or
+    reconcile finds it), the customer's money is recorded: the payment is completed, exactly once."""
+    c, payment = started(fake_bkash, admin, packages)
+    fake_bkash.on("checkout/payment/status", status_of("Initiated", verification="Incomplete"))
+    abandon(c, payment)
+
+    fake_bkash.on("checkout/payment/status", status_of("Initiated", verification="Complete"))
+    fake_bkash.on("checkout/execute", executed())
+    r = callback(Client())
+    payment.refresh_from_db()
+    assert payment.status == Status.COMPLETED and payment.receipt_number and payment.failure_reason == ""
+    assert payment.bkash_trx_id == TRX_ID and payment.subscription_id
+    assert r["Location"].endswith("result=success")
+
+    fake_bkash.on("checkout/payment/status", status_of("Completed"))
+    callback(Client())
+    billing.reconcile()
+    assert fake_bkash.paths().count("checkout/execute") == 1
+    assert AuditLog.objects.filter(action="payment.completed", target_id=str(payment.id)).count() == 1
+    assert Subscription.objects.count() == 1
+
+
+def test_an_abandoned_payment_stays_cancelled_unless_bkash_says_paid(fake_bkash, admin, packages):
+    c, payment = started(fake_bkash, admin, packages)
+    fake_bkash.on("checkout/payment/status", status_of("Initiated", verification="Incomplete"))
+    abandon(c, payment)
+    assert callback(Client())["Location"].endswith("result=cancelled")
+    assert callback(Client(), "cancel")["Location"].endswith("result=cancelled")
+    payment.refresh_from_db()
+    assert (payment.status, payment.failure_reason) == (Status.CANCELLED, "Abandoned by the institution admin")
+    assert "checkout/execute" not in fake_bkash.paths()
+
+    fake_bkash.on("checkout/payment/status", status_of("Failed", verification="Incomplete"))
+    age(payment, minutes=11)
+    assert billing.reconcile()["rechecked"] == 1
+    payment.refresh_from_db()
+    assert (payment.status, payment.bkash_status) == (Status.CANCELLED, "Failed")
+    assert billing.reconcile().get("rechecked") is None
+
+
+def abandon_then_buy(fake_bkash, admin, packages, package="standard", amount="3000"):
+    """Abandons a Basic checkout (A), then starts and pays a checkout for `package` (B). Returns (A, B)."""
+    c, first = started(fake_bkash, admin, packages)
+    fake_bkash.on("checkout/payment/status", status_of("Initiated", verification="Incomplete"))
+    assert abandon(c, first).status_code == 200
+    fake_bkash.on("checkout/create", created(amount=amount, payment_id="TR0011second"))
+    assert checkout(c, packages[package]).status_code == 201
+    second = PaymentRecord.objects.get(bkash_payment_id="TR0011second")
+    fake_bkash.on("checkout/execute", executed(amount=amount, payment_id="TR0011second", trx_id="TRXSECOND1"))
+    callback(Client(), payment_id="TR0011second")
+    second.refresh_from_db()
+    assert second.status == Status.COMPLETED and second.subscription.status == Subscription.Status.ACTIVE
+    return first, second
+
+
+@pytest.mark.parametrize("via", ["callback", "reconcile"])
+def test_an_abandoned_payment_paid_after_a_newer_purchase_records_money_but_keeps_that_purchase(
+        fake_bkash, admin, packages, via):
+    first, second = abandon_then_buy(fake_bkash, admin, packages)
+    fake_bkash.on("checkout/payment/status", status_of("Completed"))
+    if via == "callback":
+        assert callback(Client())["Location"].endswith("result=success")
+    else:
+        age(first, minutes=11)
+        assert billing.reconcile()["rechecked"] == 1
+    first.refresh_from_db()
+    second.refresh_from_db()
+    assert first.status == Status.COMPLETED and first.bkash_trx_id == TRX_ID and first.receipt_number
+    assert first.subscription_id is None and first.notes == billing.NOT_APPLIED_NOTE
+    assert second.subscription.status == Subscription.Status.ACTIVE
+    assert second.subscription.package_version.package_id == packages["standard"].pk
+    assert Subscription.objects.count() == 1
+    entry = AuditLog.objects.get(action="payment.completed", target_id=str(first.id))
+    assert entry.metadata["not_applied"] is True and "subscription_id" not in entry.metadata
+
+
+def test_an_abandoned_payment_for_other_apps_is_applied_when_paid_late(fake_bkash, admin, packages):
+    first, second = abandon_then_buy(fake_bkash, admin, packages, package="mind", amount="2000")
+    fake_bkash.on("checkout/payment/status", status_of("Completed"))
+    callback(Client())
+    first.refresh_from_db()
+    second.refresh_from_db()
+    assert first.status == Status.COMPLETED and first.subscription.package_version.package_id == packages["basic"].pk
+    assert first.notes == "" and second.subscription.status == Subscription.Status.ACTIVE
+
+
+def test_abandon_while_bkash_creates_the_payment_hands_out_no_checkout_url(fake_bkash, monkeypatch, admin, packages):
+    real_create = billing.bkash.create_payment
+
+    def abandoned_meanwhile(**kwargs):
+        billing.abandon(PaymentRecord.objects.get().pk, actor=admin.user, source="portal")
+        return real_create(**kwargs)
+
+    monkeypatch.setattr(billing.bkash, "create_payment", abandoned_meanwhile)
+    fake_bkash.on("checkout/create", created())
+    r = checkout(signed_in(admin.user), packages["basic"])
+    assert r.status_code == 201, r.json()
+    assert r.json()["redirect_url"] is None and r.json()["payment"]["status"] == "cancelled"
+    payment = PaymentRecord.objects.get()
+    assert (payment.bkash_payment_id, payment.bkash_status) == (PAYMENT_ID, "Initiated")
+    assert payment.failure_reason == "Abandoned by the institution admin"
+
+    fake_bkash.on("checkout/payment/status", status_of("Completed"))
+    callback(Client())
+    payment.refresh_from_db()
+    assert payment.status == Status.COMPLETED and payment.bkash_trx_id == TRX_ID
+
+
+def test_reconcile_records_money_for_an_abandoned_payment(fake_bkash, admin, packages):
+    c, payment = started(fake_bkash, admin, packages)
+    fake_bkash.on("checkout/payment/status", status_of("Initiated", verification="Incomplete"))
+    abandon(c, payment)
+    age(payment, minutes=11)
+    fake_bkash.on("checkout/payment/status", status_of("Completed"))
+    counts = billing.reconcile()
+    assert (counts["checked"], counts["rechecked"], counts["completed"]) == (0, 1, 1)
+    payment.refresh_from_db()
+    assert payment.status == Status.COMPLETED and payment.receipt_number and payment.bkash_trx_id == TRX_ID
+    age(payment, hours=25)
+    assert billing.reconcile().get("rechecked") is None

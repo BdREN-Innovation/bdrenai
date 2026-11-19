@@ -22,6 +22,7 @@ urlpatterns = [
     path(institution + "billing/", billing.BillingView.as_view()),
     path(institution + "billing/checkout/", billing.CheckoutView.as_view()),
     path(institution + "billing/downgrade/", billing.DowngradeView.as_view()),
+    path(institution + "billing/payments/<uuid:pk>/abandon/", billing.AbandonView.as_view()),
     path(institution + "billing/payments/<uuid:pk>/receipt/", billing.ReceiptView.as_view()),
     path(institution + "billing/payments/<uuid:pk>/attachment/", billing.AttachmentView.as_view()),
 ]

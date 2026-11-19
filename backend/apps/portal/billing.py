@@ -85,6 +85,16 @@ class DowngradeView(PortalView):
         return JsonResponse(_subscription_body(pk))
 
 
+class AbandonView(PortalView):
+    def post(self, request, slug, pk):
+        account = billing.organization_account(self.organization)
+        payment, result = billing.abandon(
+            pk, actor=request.user, source="portal", account=account, ip_address=client_ip(request),
+        )
+        body = shapes.payment(billing.load_payment(payment.pk), portal=True)
+        return JsonResponse({"payment": body, "result": result})
+
+
 class ReceiptView(PortalView):
     def get(self, request, slug, pk):
         account = billing.organization_account(self.organization)

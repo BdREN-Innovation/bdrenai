@@ -66,7 +66,8 @@ class PaymentRecord(models.Model):
     bkash_trx_id = models.CharField(max_length=64, null=True, blank=True)
     bkash_payer_account = models.CharField(max_length=32, blank=True)
     bkash_status = models.CharField(max_length=32, blank=True)
-    # bKash's checkout page for this payment (validated https bKash host); lets the console resume a pending one.
+    # bKash's checkout page for this payment (validated https bKash host), kept for support. Never handed out again:
+    # bKash's checkout URL works once (reopening it shows "Invalid page access request").
     bkash_checkout_url = models.CharField(max_length=1000, blank=True)
     failure_reason = models.CharField(max_length=500, blank=True)
     receipt_number = models.CharField(max_length=32, unique=True, null=True, blank=True)

@@ -110,15 +110,47 @@ transaction with the subscription change, and is idempotent (a completed payment
      masked payer, receipt number, apply quote, audit `payment.completed`, email the receipt to the payer user if any);
      otherwise → `failed` with the bKash status message. Redirect with the result.
    The callback's `status=success` alone never completes a payment.
+   A payment the institution **abandoned** (step 5) that comes back with `status=success` is not ignored: bKash is
+   asked for its status, and `Completed` (or approved, then executed) completes it exactly once, since the customer
+   paid. Any other answer leaves it `cancelled`; `cancel`/`failure` callbacks leave it as it is.
 3. Reconciliation: `manage.py reconcile_bkash [--loop]` (compose service like the mailer, every 5 min): pending bKash
    payments older than 10 minutes → query status: `Completed` → complete; `Initiated` with `verificationStatus
    Complete` → execute then complete; still `Initiated` after 24 h, or any failed/cancelled state → `failed`/`cancelled`.
    Logs counts. Idempotent and safe to run concurrently (row locks, skip locked).
+   Each pass also re-checks payments **abandoned** (step 5) in the last 24 hours that bKash last listed as
+   `Initiated` (`rechecked` in the counts): `Completed` or approved → completed (the money is recorded, never
+   dropped); a final bKash state is noted on `bkash_status` (the payment stays `cancelled`) so it is not asked again.
 4. Refund (superadmin): `POST billing/payments/<id>/refund/` `{"amount", "reason", "end_subscription": false}` →
    bKash payments: refund API, record `Refund` with `bkash_refund_trx_id`; manual payments: record a manual refund.
    Status → `refunded` or `partially_refunded`. `end_subscription: true` cancels the subscription the payment created
    or extended (only if this payment's period is the current one). 409 `refund_exceeds_payment`, 409 `not_refundable`
    (pending/failed/cancelled/rejected), 502 `bkash_error` (nothing recorded as completed).
+5. Abandon (institution owner/admin, or superadmin): `POST …/payments/<id>/abandon/` gives up a pending bKash
+   payment so a new checkout can start at once, without ever losing money. Under the payment's row lock bKash's
+   `payment/status` is asked first (the 2033 retries as above), then:
+   | bKash says | what happens | answer |
+   |---|---|---|
+   | `Completed` | completed exactly as the callback/reconcile would (trxID, receipt, quote applied, receipt email) | 200 `"result": "completed"` |
+   | `Initiated`, `verificationStatus` `Complete` (approved, not executed) | executed, then completed | 200 `"result": "completed"` |
+   | same, but execute fails | left `pending` (reconcile settles it) | 409 `payment_confirming` |
+   | `Initiated` (payer has not approved) | `cancelled`, `failure_reason` "Abandoned by the institution admin", audit `payment.abandoned` (`source` `portal`/`superadmin`) | 200 `"result": "cancelled"` |
+   | `Cancelled` / any other final state | `cancelled` / `failed` like reconcile | 200 `"result": "cancelled"` / `"failed"` |
+   | no answer | nothing changes | 502 `bkash_error` |
+   A pending payment that never reached bKash (no `paymentID`) is cancelled without asking. A `Completed` answer for
+   another amount fails the payment (`"result": "failed"`, BdREN refunds it). Body:
+   `{"payment": Payment, "result": "completed|cancelled|failed"}`. Not pending, or not a bKash payment
+   (manual payments are verified/rejected instead) → 409 `not_pending`, so abandoning twice answers `not_pending`.
+   **Rule:** abandoning only cancels on our side. If bKash later says the payer paid (callback `success` or the
+   reconcile re-check), the payment is completed after all. If a newer payment for any of the same apps was paid
+   meanwhile (its subscription still live), the late bKash payment is recorded (`completed`, trxID, receipt) but
+   changes no subscription: `subscription` stays empty, `notes` says "Paid after a newer purchase of the same apps;
+   no subscription was changed. BdREN refunds it.", and the `payment.completed` audit carries `not_applied: true`.
+   The newer purchase is never cancelled; BdREN refunds the late payment from the panel (without
+   `end_subscription`). A renewal of the subscription the newer payment also renewed is still applied. The same rule
+   holds for any bKash payment that settles late (reconcile) after a newer purchase.
+   If the payment is abandoned while checkout is still creating it at bKash, checkout answers 201 with the
+   `cancelled` payment and `"redirect_url": null`; bKash's paymentID is still stored so a payer who pays anyway is
+   recorded.
 
 ## Superadmin API (`/api/v1/superadmin/billing/`, superadmin only)
 `Payment` shape:
@@ -142,6 +174,8 @@ transaction with the subscription change, and is idempotent (a completed payment
   requires `notes` (400 otherwise). `pending: true` stores it `pending` for a second person to verify.
 - `POST payments/<id>/verify/` `{"notes"?}` (pending manual only; applies the quote) · `POST payments/<id>/reject/` `{"reason"}`.
 - `POST payments/<id>/refund/` (above).
+- `POST payments/<id>/abandon/` → 200 `{"payment": Payment, "result"}`: any institution's pending bKash payment, rules
+  and errors as in bKash flow step 5 (audited with `source` `superadmin`); unknown id → 404 `not_found`.
 - `POST payments/<id>/attachment/` (multipart `file`) · `GET payments/<id>/attachment/` (download, `Content-Disposition: attachment`).
 - `GET payments/<id>/receipt/` → printable HTML receipt (completed payments only; 409 otherwise).
 - `GET quote/?institution=<slug>&package=<id>&kind=&periods=` → the quote, for the Record payment preview.
@@ -164,6 +198,8 @@ transaction with the subscription change, and is idempotent (a completed payment
 - `POST billing/checkout/` (above). `POST billing/downgrade/` `{"package": "<id>"}` → schedules (sets
   `pending_package_version`; lower price, same apps covered; 400 otherwise) · `DELETE billing/downgrade/` cancels.
 - `GET billing/payments/<id>/receipt/` and `GET billing/payments/<id>/attachment/` for their own institution only.
+- `POST billing/payments/<id>/abandon/` → 200 `{"payment": Payment (portal shape), "result": "completed|cancelled|failed"}`
+  (bKash flow step 5). Same access as the other billing routes; another institution's payment → 404 `not_found`.
 
 ## Emails
 Receipt email (payer user, after completion): amount, package, period, receipt number, method; no links.
@@ -251,7 +287,7 @@ All errors use `{"error", "message", "fields"?}`; `message` is plain English saf
 | 400 | `package_unavailable` | archived, inactive, not public, or one of its apps is inactive |
 | 400 | `package_not_offered` | not one of this institution's `offers` for that `kind` (e.g. renew of a different package, upgrade to an equal/lower price, `new` while a subscription is active) |
 | 409 | `covered_by_bundle` | a single package for an app the institution already gets from an active combined package |
-| 409 | `checkout_in_progress` | a bKash payment for this institution was started < 10 minutes ago and is still pending; body adds `"payment": Payment` so the screen can offer to continue or wait |
+| 409 | `checkout_in_progress` | a bKash payment for this institution was started < 10 minutes ago and is still pending; body adds `"payment": Payment` and `"redirect_url": null` (always null: bKash checkout URLs are single-use), so the screen can offer to wait or abandon it |
 | 409 | `seats_exceed_package` | the package's `seat_limit` is below the institution's seats in use; body adds `"seats": {"used","cap"}` |
 | 403 | `institution_suspended` | (existing portal rule) |
 | 503 | `bkash_unavailable` | bKash is not configured |
@@ -268,6 +304,14 @@ All errors use `{"error", "message", "fields"?}`; `message` is plain English saf
 → 200 `{"subscription": Subscription}` (with `scheduled_package`).
 
 `DELETE billing/downgrade/` → 200 `{"subscription": Subscription}`; 409 `no_scheduled_change`.
+
+`POST billing/payments/<id>/abandon/` → 200 `{"payment", "result"}`
+| status | `error` | when |
+|---|---|---|
+| 404 | `not_found` | no such payment for this institution |
+| 409 | `not_pending` | the payment is not a pending bKash payment (already settled or abandoned, or a manual payment) |
+| 409 | `payment_confirming` | the payer approved it but bKash could not execute it yet; it stays pending and settles on its own |
+| 502 | `bkash_error` | bKash did not answer; nothing changed, try again |
 
 `GET billing/` shapes: `subscriptions` use the superadmin `Subscription` shape; `payments` use `Payment` except
 `recorded_by`/`verified_by` are `{"name"}` only (no email) and `refunds[].created_by` is omitted. `offers[].quote` is
@@ -305,12 +349,19 @@ Where the build is more specific than the sections above:
 
 ## Follow-ups from the institution console build (2026-11-19)
 
-- `409 checkout_in_progress` now also returns `"redirect_url"`: bKash's checkout page for that pending payment while
-  bKash still lists it as `Initiated`, else `null`. The console can offer "Continue to bKash" with it.
+- `409 checkout_in_progress` returns `"redirect_url": null`, always (the key stays for compatibility). An earlier
+  build (a48c237) returned the pending payment's bKash checkout URL there, but bKash's `bkashURL` is single-use:
+  once the page has been opened, reopening it shows bKash's "Invalid page access request" page even though
+  `payment/status` still says `Initiated` (seen in the live sandbox, 2026-11-19). The console should offer to wait
+  or to abandon the pending payment (`POST billing/payments/<id>/abandon/`, bKash flow step 5), after which a new
+  checkout can start at once.
 - bKash's checkout URL is validated before it is stored or returned: `https`, no credentials, host `bka.sh` /
   `bkash.com` or a subdomain of either. Anything else fails the payment (`failure_reason` "bKash returned an
   unexpected checkout address.") and checkout answers 502 `bkash_error`. Stored on the payment as
-  `bkash_checkout_url` (internal, not in the `Payment` shape).
+  `bkash_checkout_url` for support only (internal, not in the `Payment` shape, never handed out again).
+- New: `POST billing/payments/<id>/abandon/` (portal) and `POST billing/payments/<id>/abandon/` (superadmin), with
+  `not_pending`, `payment_confirming` and `bkash_error` (bKash flow step 5, "Portal errors and shapes"). The console
+  can show "Abandon this payment" on a pending bKash payment and on the `checkout_in_progress` notice.
 - Errors the tables above did not list:
   | status | `error` | where / when |
   |---|---|---|

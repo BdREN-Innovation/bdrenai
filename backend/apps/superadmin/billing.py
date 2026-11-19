@@ -105,6 +105,13 @@ class RefundView(SuperadminView):
         return JsonResponse(payment_body(pk))
 
 
+class AbandonView(SuperadminView):
+    def post(self, request, pk):
+        billing.load_payment(pk)
+        payment, result = billing.abandon(pk, actor=request.user, source="superadmin", ip_address=client_ip(request))
+        return JsonResponse({"payment": payment_body(payment.pk), "result": result})
+
+
 class AttachmentView(SuperadminView):
     def get(self, request, pk):
         return attachment_response(*billing.attachment(pk))

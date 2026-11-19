@@ -139,7 +139,7 @@ def test_bkash_payments_cannot_be_verified(fake_bkash, boss, admin, packages):
 
 def test_unknown_payment_is_404(staff):
     pk = "8b8f6c1e-55a6-4d0b-9a49-1f0d2d0e8a11"
-    for path in ("", "verify/", "reject/", "refund/", "attachment/", "receipt/"):
+    for path in ("", "verify/", "reject/", "refund/", "abandon/", "attachment/", "receipt/"):
         method = "get" if path in ("", "attachment/", "receipt/") else "post"
         assert error(superadmin(staff, method, f"billing/payments/{pk}/{path}", {})) == (404, "not_found"), path
 
@@ -413,7 +413,7 @@ SUPERADMIN_ENDPOINTS = [
     ("get", "billing/summary/"), ("get", "billing/payments/"), ("get", "billing/payments/{pk}/"),
     ("post", "billing/payments/manual/"), ("post", "billing/payments/{pk}/verify/"),
     ("post", "billing/payments/{pk}/reject/"), ("post", "billing/payments/{pk}/refund/"),
-    ("post", "billing/payments/{pk}/attachment/"), ("get", "billing/payments/{pk}/attachment/"),
+    ("post", "billing/payments/{pk}/abandon/"), ("post", "billing/payments/{pk}/attachment/"), ("get", "billing/payments/{pk}/attachment/"),
     ("get", "billing/payments/{pk}/receipt/"), ("get", "billing/quote/"), ("get", "billing/subscriptions/"),
     ("post", "billing/subscriptions/{pk}/cancel-scheduled-change/"),
     ("post", "billing/subscriptions/{pk}/stop-renewal/"), ("post", "billing/subscriptions/{pk}/resume-renewal/"),

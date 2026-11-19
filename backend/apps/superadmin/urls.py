@@ -45,6 +45,7 @@ urlpatterns = [
     path("billing/payments/<uuid:pk>/verify/", billing.VerifyView.as_view()),
     path("billing/payments/<uuid:pk>/reject/", billing.RejectView.as_view()),
     path("billing/payments/<uuid:pk>/refund/", billing.RefundView.as_view()),
+    path("billing/payments/<uuid:pk>/abandon/", billing.AbandonView.as_view()),
     path("billing/payments/<uuid:pk>/attachment/", billing.AttachmentView.as_view()),
     path("billing/payments/<uuid:pk>/receipt/", billing.ReceiptView.as_view()),
     path("billing/quote/", billing.QuoteView.as_view()),
