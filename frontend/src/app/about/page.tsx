@@ -33,10 +33,9 @@ export default function AboutPage() {
       <section id="about" aria-labelledby="ab-title" className="bg-night px-6 py-24 text-fog">
         <div className="mx-auto flex max-w-site flex-wrap gap-14">
           <div className="min-w-0 flex-[1_1_560px]">
-            <p className="eyebrow text-brand-glow">About BdREN AI</p>
             <h1
               id="ab-title"
-              className="mt-4 font-display text-5xl font-bold leading-[1.05] tracking-tight text-white md:text-6xl"
+              className="font-display text-5xl font-bold leading-[1.05] tracking-tight text-white md:text-6xl"
             >
               AI from the network that connects Bangladesh&apos;s universities
             </h1>

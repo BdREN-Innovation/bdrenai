@@ -124,7 +124,7 @@ export const PRODUCT_LISTINGS: Listing[] = [
     id: "mindspear",
     label: "Mindspear",
     rowHead: "Feature",
-    blurb: "AI research assistant with quests and assessments for universities and researchers.",
+    blurb: "Turns any PowerPoint or PDF into a live quiz game for a class or group, with a leaderboard.",
     plans: [
       {
         name: "Starter",
@@ -191,14 +191,14 @@ export const PRODUCT_LISTINGS: Listing[] = [
     id: "quigen",
     label: "QuiGen",
     rowHead: "Feature",
-    blurb: "Generates quizzes from a topic, your files or class material.",
+    blurb: "Creates a quiz from your PowerPoint or PDF, ready for teachers to review and set.",
     plans: [
       {
         name: "[Plan]",
         who: "Individual teachers",
         price: PRICE,
         period: PER_PERSON,
-        features: ["Quizzes from a topic", "Quizzes from your files", "[Quizzes per month]"],
+        features: ["Quizzes from your PPTX or PDF", "Ready for teachers to review", "[Quizzes per month]"],
         cta: "Choose plan",
       },
       {
@@ -215,13 +215,13 @@ export const PRODUCT_LISTINGS: Listing[] = [
         who: "Universities and schools",
         price: PRICE,
         period: PER_INSTITUTION,
-        features: ["Quizzes from topics and files", "Shared institution budget", "Admin-managed access"],
+        features: ["Quizzes from PPTX or PDF", "Shared institution budget", "Admin-managed access"],
         cta: "Get a quote",
       },
     ],
     rows: [
-      { label: "Quizzes from a topic", cells: ["Yes", "Yes", "Yes"] },
-      { label: "Quizzes from your files", cells: ["Yes", "Yes", "Yes"] },
+      { label: "Quizzes from PPTX or PDF", cells: ["Yes", "Yes", "Yes"] },
+      { label: "Review before setting", cells: ["Yes", "Yes", "Yes"] },
       { label: "Quizzes per month", cells: ["[—]", "[—]", "[—]"] },
     ],
   },

@@ -8,7 +8,7 @@ const COMPANY_LINKS = [
 
 export function Footer() {
   return (
-    <footer className="bg-night px-6 pb-10 pt-16 text-[15px] text-haze">
+    <footer className="bg-ink px-6 pb-10 pt-16 text-[15px] text-haze">
       <div className="mx-auto grid max-w-site gap-10 sm:grid-cols-2 lg:grid-cols-4">
         <div>
           <p className="font-display text-xl font-bold text-white">BdREN AI</p>
@@ -40,7 +40,7 @@ export function Footer() {
           </a>
         </nav>
       </div>
-      <p className="mx-auto mt-12 max-w-site border-t border-night-line pt-6 text-sm">
+      <p className="mx-auto mt-12 max-w-site border-t border-white/15 pt-6 text-sm">
         © {new Date().getFullYear()} BdREN. All rights reserved.
       </p>
     </footer>

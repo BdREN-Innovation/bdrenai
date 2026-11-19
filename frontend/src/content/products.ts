@@ -9,13 +9,17 @@ export interface Product {
   slug: ProductSlug;
   name: string;
   initial: string;
+  /** The product's flat ground on the home page sleeve; white text passes AA on every one. */
+  color: string;
   category: string;
   summary: string;
+  /** Three short lines for the home page chapter list. */
+  points: string[];
   line: string;
   intro: string;
   featuresTitle: string;
   features: TextItem[];
-  builtIn?: TextItem & { eyebrow: string };
+  builtIn?: TextItem;
   admin?: { title: string; intro: string; items: TextItem[] };
   faqs: { q: string; a: string }[];
   screenshot: string;
@@ -26,9 +30,15 @@ export const PRODUCTS: Product[] = [
     slug: "synapse",
     name: "Synapse",
     initial: "S",
+    color: "#1846C9",
     category: "AI workspace",
     summary:
       "BdREN's AI workspace for offices, universities and research institutions, built on leading AI models with custom agents for specialised work.",
+    points: [
+      "Letters, reports and decks; edits Word, Excel and PowerPoint",
+      "Scanned pages become editable Word files",
+      "Answers from your institution's own policies, with page citations",
+    ],
     line: "AI workspace, with Synapse Browser",
     intro:
       "The AI workspace for offices, universities and research institutions. Draft letters, rebuild scanned pages, search your own documents and manage it all per institution.",
@@ -45,7 +55,6 @@ export const PRODUCTS: Product[] = [
       { title: "Images from a description", body: "Creates images and visuals for posters, slides and notices from a few words." },
     ],
     builtIn: {
-      eyebrow: "Built into Synapse",
       title: "Synapse Browser",
       body: "Synapse can do web work for you in your own browser: it fills online forms from your files and stops for your approval before anything is submitted.",
     },
@@ -77,26 +86,33 @@ export const PRODUCTS: Product[] = [
     slug: "mindspear",
     name: "Mindspear",
     initial: "M",
-    category: "Research & assessment",
-    summary: "AI research assistant with quests and assessments for universities and researchers.",
-    line: "Research and assessment",
-    intro: "An AI research assistant with quests and assessments, built for universities and researchers.",
-    featuresTitle: "Research help for universities",
+    color: "#0B7F80",
+    category: "Live quiz games",
+    summary: "Turns any PowerPoint or PDF into a playful quiz game for a class or group, with a live leaderboard.",
+    points: ["Upload a PPTX or PDF and get a game", "Everyone plays together, live", "A live leaderboard as the game runs"],
+    line: "Live quiz games from your slides",
+    intro: "Turn any PowerPoint or PDF into a playful quiz game. Your class or group plays together, live, with a leaderboard on screen.",
+    featuresTitle: "Your slides, played as a game",
     features: [
-      { title: "Research assistant", body: "[Describe how Mindspear helps with research.]" },
-      { title: "Quests", body: "[Describe Mindspear quests.]" },
-      { title: "Assessments", body: "[Describe Mindspear assessments.]" },
+      { title: "From your PPTX or PDF", body: "Upload the slides or document you already teach from, and Mindspear turns it into a quiz game." },
+      { title: "Played together, live", body: "The whole class or group plays at the same time." },
+      { title: "Live leaderboard", body: "Scores update on a leaderboard as the game runs." },
     ],
-    faqs: [{ q: "[Question about Mindspear]", a: "[Answer.]" }],
-    screenshot: "Mindspear research workspace",
+    faqs: [
+      { q: "What can Mindspear make a game from?", a: "Any PowerPoint (PPTX) or PDF." },
+      { q: "How is it different from QuiGen?", a: "Mindspear makes a game the group plays live, with a leaderboard. QuiGen makes a quiz to set and mark." },
+    ],
+    screenshot: "Mindspear's live leaderboard during a class game",
   },
   {
     slug: "mail-wizard",
     name: "AI Mail Wizard",
     initial: "A",
+    color: "#C92A5C",
     category: "Email assistant",
     summary:
       "Smart replies from the whole thread, formal emails from a few details, summaries and translation. Works in Roundcube and Gmail.",
+    points: ["Replies written from the whole thread", "Formal emails from a few details", "Summaries and translation"],
     line: "Email replies and summaries",
     intro:
       "BdREN's AI email assistant. It writes and replies to email with smart suggestions, inside Roundcube webmail and Gmail.",
@@ -122,18 +138,23 @@ export const PRODUCTS: Product[] = [
     slug: "quigen",
     name: "QuiGen",
     initial: "Q",
-    category: "Quiz generator",
-    summary: "Generates quizzes from a topic, your files or class material, ready for teachers to review and use.",
-    line: "Quizzes from topics and files",
-    intro: "Generate quizzes from a topic, your files or class material, then review and use them with your students.",
-    featuresTitle: "Quizzes in minutes",
+    color: "#7B3FC4",
+    category: "Quiz maker",
+    summary: "Creates a quiz from your PowerPoint or PDF. A quiz to set and mark, not a game.",
+    points: ["Upload a PPTX or PDF and get a quiz", "Questions drawn from your own material", "Ready for teachers to review"],
+    line: "Quizzes from your slides and PDFs",
+    intro: "Turn your PowerPoint or PDF into a quiz, then review it and set it for your students.",
+    featuresTitle: "A quiz from what you already teach",
     features: [
-      { title: "From a topic", body: "Name a topic and get a quiz to review and edit." },
-      { title: "From your files", body: "Upload lecture notes or documents and QuiGen builds questions from them." },
+      { title: "From your PPTX or PDF", body: "Upload your slides or document and QuiGen builds questions from it." },
+      { title: "Ready to review", body: "Read and edit the questions before you set the quiz." },
       { title: "[Question types]", body: "[List the question types QuiGen supports.]" },
     ],
-    faqs: [{ q: "What can QuiGen make quizzes from?", a: "A topic, your files or class material." }],
-    screenshot: "QuiGen building a quiz from lecture notes",
+    faqs: [
+      { q: "What can QuiGen make quizzes from?", a: "A PowerPoint (PPTX) or PDF." },
+      { q: "How is it different from Mindspear?", a: "QuiGen makes a quiz to set and mark. Mindspear turns the same files into a live game with a leaderboard." },
+    ],
+    screenshot: "QuiGen building a quiz from lecture slides",
   },
 ];
 

@@ -39,8 +39,7 @@ export default function PricingPage() {
           className="mx-auto mt-16 flex max-w-site flex-wrap items-center justify-between gap-8 rounded-[20px] bg-ink p-10 text-fog md:p-11"
         >
           <div className="min-w-0 flex-[1_1_520px]">
-            <p className="eyebrow text-brand-glow">For universities and offices</p>
-            <h2 id="inst-title" className="mt-3 font-display text-3xl font-bold text-white md:text-[34px]">
+            <h2 id="inst-title" className="font-display text-3xl font-bold text-white md:text-[34px]">
               Institution pool or a custom contract
             </h2>
             <p className="mt-3.5 text-[17px] leading-relaxed text-mist">
@@ -48,7 +47,7 @@ export default function PricingPage() {
               admin console, per-member limits and usage reports.
             </p>
           </div>
-          <a href="/about#contact" className="btn-primary min-h-[52px]">
+          <a href="/about#contact" className="btn min-h-[52px] bg-white px-7 text-ink hover:bg-fog">
             Get an institution quote
           </a>
         </section>

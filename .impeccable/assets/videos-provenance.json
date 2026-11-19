@@ -1,0 +1,28 @@
+{
+  "files": {
+    "frontend/public/videos/synapse.webm": {
+      "status": "placeholder, not product footage",
+      "origin": "drawn on an HTML canvas in the browser and recorded with MediaRecorder (VP8 WebM, 960x540, 4 s): a grey mock app window whose text lines grow in; no text burned in",
+      "made": "2026-11-19, Claude Code session, BdREN AI website redesign",
+      "replace_with": "a 5-10 s 16:9 screen recording of synapse in use, saved as frontend/public/videos/synapse.mp4 (then delete the .webm)"
+    },
+    "frontend/public/videos/mindspear.webm": {
+      "status": "placeholder, not product footage",
+      "origin": "drawn on an HTML canvas in the browser and recorded with MediaRecorder (VP8 WebM, 960x540, 4 s): a grey mock app window whose text lines grow in; no text burned in",
+      "made": "2026-11-19, Claude Code session, BdREN AI website redesign",
+      "replace_with": "a 5-10 s 16:9 screen recording of mindspear in use, saved as frontend/public/videos/mindspear.mp4 (then delete the .webm)"
+    },
+    "frontend/public/videos/mail-wizard.webm": {
+      "status": "placeholder, not product footage",
+      "origin": "drawn on an HTML canvas in the browser and recorded with MediaRecorder (VP8 WebM, 960x540, 4 s): a grey mock app window whose text lines grow in; no text burned in",
+      "made": "2026-11-19, Claude Code session, BdREN AI website redesign",
+      "replace_with": "a 5-10 s 16:9 screen recording of mail-wizard in use, saved as frontend/public/videos/mail-wizard.mp4 (then delete the .webm)"
+    },
+    "frontend/public/videos/quigen.webm": {
+      "status": "placeholder, not product footage",
+      "origin": "drawn on an HTML canvas in the browser and recorded with MediaRecorder (VP8 WebM, 960x540, 4 s): a grey mock app window whose text lines grow in; no text burned in",
+      "made": "2026-11-19, Claude Code session, BdREN AI website redesign",
+      "replace_with": "a 5-10 s 16:9 screen recording of quigen in use, saved as frontend/public/videos/quigen.mp4 (then delete the .webm)"
+    }
+  }
+}

@@ -39,7 +39,7 @@ export default function RegisterPage({ searchParams }: { searchParams: Params })
                   aria-hidden="true"
                   className="flex h-9 w-9 flex-none items-center justify-center rounded-[10px] border border-night-edge bg-night-raised"
                 >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F08A4B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M5 12l5 5 9-10" />
                   </svg>
                 </span>

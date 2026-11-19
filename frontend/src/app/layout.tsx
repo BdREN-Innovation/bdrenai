@@ -1,10 +1,10 @@
 import "./globals.css";
 import type { Metadata } from "next";
-import { Inter, Noto_Sans_Bengali, Space_Grotesk } from "next/font/google";
+import { Baloo_Da_2, Fredoka, Nunito } from "next/font/google";
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
-const display = Space_Grotesk({ subsets: ["latin"], variable: "--font-display", display: "swap" });
-const bengali = Noto_Sans_Bengali({ subsets: ["bengali"], weight: ["500"], variable: "--font-bengali", display: "swap" });
+const sans = Nunito({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
+const display = Fredoka({ subsets: ["latin"], variable: "--font-display", display: "swap" });
+const bengali = Baloo_Da_2({ subsets: ["bengali"], weight: ["500", "600"], variable: "--font-bengali", display: "swap" });
 
 export const metadata: Metadata = {
   title: { default: "BdREN AI", template: "%s · BdREN AI" },
@@ -14,7 +14,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${inter.variable} ${display.variable} ${bengali.variable}`}>
+    <html lang="en" className={`${sans.variable} ${display.variable} ${bengali.variable}`}>
       <body className="min-h-screen bg-ground font-sans text-ink antialiased">{children}</body>
     </html>
   );

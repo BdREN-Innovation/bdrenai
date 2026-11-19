@@ -155,7 +155,7 @@ function DetailsForm({ user, onSaved }: { user: MyProfile; onSaved: (u: MyProfil
         </label>
         <div className="relative">
           <input id="p-email" value={user.email} readOnly aria-describedby="p-email-note" className="input min-h-[50px] cursor-not-allowed bg-ground pr-12 text-muted" />
-          <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4A5C60" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="absolute right-4 top-4">
+          <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4A4E63" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="absolute right-4 top-4">
             <rect x="5" y="11" width="14" height="10" rx="2" />
             <path d="M8 11V8a4 4 0 0 1 8 0v3" />
           </svg>

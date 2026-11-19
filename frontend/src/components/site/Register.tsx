@@ -313,7 +313,7 @@ export function Register({ initialEmail = "", next = "/" }: { initialEmail?: str
               aria-label={showPw ? "Hide passwords" : "Show passwords"}
               className="flex min-h-[48px] min-w-[48px] items-center justify-center"
             >
-              <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#4A5C60" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#4A4E63" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" />
                 <circle cx="12" cy="12" r="3" />
               </svg>
@@ -326,7 +326,7 @@ export function Register({ initialEmail = "", next = "/" }: { initialEmail?: str
                   aria-hidden="true"
                   className={`flex h-[18px] w-[18px] flex-none items-center justify-center rounded-full text-[12px] font-bold ${r.ok ? "bg-ink text-white" : "border-[1.5px] border-field"}`}
                 >
-                  {r.ok ? "✓" : ""}
+                  {r.ok ? <svg aria-hidden="true" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12.5l5 5L20 6" /></svg> : null}
                 </span>
                 {r.label}
                 <span className="sr-only">{r.ok ? " (met)" : " (not yet)"}</span>

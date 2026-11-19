@@ -109,7 +109,7 @@ function ProfileMenu({ user }: { user: MyProfile }) {
   );
 }
 
-export function Header({ current }: { current?: string }) {
+export function Header({ current, overlay = false }: { current?: string; overlay?: boolean }) {
   const [user, setUser] = useState<MyProfile | null>(null);
 
   useEffect(() => {
@@ -122,16 +122,18 @@ export function Header({ current }: { current?: string }) {
   }, []);
 
   return (
-    <header className="border-b border-night-line bg-night">
-      <div className="mx-auto flex min-h-[72px] max-w-site flex-wrap items-center justify-between gap-4 px-6 py-3">
+    <header
+      className={overlay ? "absolute inset-x-0 top-0 z-20" : "border-b border-night-line bg-night"}
+    >
+      <div className="mx-auto flex min-h-[72px] max-w-site flex-wrap items-center justify-between gap-x-4 gap-y-1 px-6 py-3">
         <Logo />
-        <nav aria-label="Main" className="flex flex-wrap items-center gap-x-7 gap-y-2 text-[15px] font-medium">
+        <nav aria-label="Main" className="order-last flex w-full flex-wrap items-center gap-x-6 gap-y-1 font-display text-base font-medium md:order-none md:w-auto md:gap-x-7">
           {NAV_LINKS.map((l) => (
             <a
               key={l.href}
               href={l.href}
               aria-current={current === l.href ? "page" : undefined}
-              className={current === l.href ? "text-white" : "text-fog hover:text-white"}
+              className={`border-b-2 py-2 transition-colors ${current === l.href ? "border-white text-white" : "border-transparent text-fog hover:border-white hover:text-white"}`}
             >
               {l.label}
             </a>
@@ -140,7 +142,7 @@ export function Header({ current }: { current?: string }) {
         {user ? (
           <ProfileMenu user={user} />
         ) : (
-          <a href="/sign-in" className="btn-primary min-h-[44px] px-5 text-[15px]">
+          <a href="/sign-in" className="btn min-h-[46px] bg-white px-5 text-[15px] text-ink hover:bg-fog">
             Sign in with BdREN
           </a>
         )}

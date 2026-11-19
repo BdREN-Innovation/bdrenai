@@ -1,0 +1,528 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-19T00:00:00+00:00",
+  "title": "Design System: BdREN AI",
+  "extensions": {
+    "colorMeta": {
+      "night": {
+        "role": "primary",
+        "displayName": "Synapse Deep Blue",
+        "canonical": "oklch(45.8% 0.208 264.3)",
+        "tonalRamp": [
+          "#000135",
+          "#010178",
+          "#0426AB",
+          "#1E4DD0",
+          "#3B71F7",
+          "#6E9AFD",
+          "#A8C4FE",
+          "#E7EFFF"
+        ],
+        "aliases": [
+          "brand-text"
+        ]
+      },
+      "night-deep": {
+        "role": "primary",
+        "displayName": "Midnight Blue",
+        "canonical": "oklch(37.1% 0.174 264.8)",
+        "tonalRamp": [
+          "#000036",
+          "#020376",
+          "#10319A",
+          "#2B53BE",
+          "#4975E3",
+          "#709AFB",
+          "#A8C4FF",
+          "#E7EFFF"
+        ],
+        "aliases": [
+          "brand-strong"
+        ]
+      },
+      "night-raised": {
+        "role": "primary",
+        "displayName": "Raised Blue",
+        "tonalRamp": [
+          "#000135",
+          "#010178",
+          "#0426AB",
+          "#1E4DD0",
+          "#3B71F7",
+          "#6E9AFD",
+          "#A8C4FE",
+          "#E7EFFF"
+        ]
+      },
+      "night-card": {
+        "role": "primary",
+        "displayName": "Card Blue",
+        "tonalRamp": [
+          "#000135",
+          "#010178",
+          "#0426AB",
+          "#1E4DD0",
+          "#3B71F7",
+          "#6E9AFD",
+          "#A8C4FE",
+          "#E7EFFF"
+        ]
+      },
+      "night-line": {
+        "role": "primary",
+        "displayName": "Line Blue",
+        "tonalRamp": [
+          "#000135",
+          "#010178",
+          "#0426AB",
+          "#1E4DD0",
+          "#3B71F7",
+          "#6E9AFD",
+          "#A8C4FE",
+          "#E7EFFF"
+        ],
+        "aliases": [
+          "night-edge"
+        ]
+      },
+      "night-stroke": {
+        "role": "primary",
+        "displayName": "Stroke Blue",
+        "tonalRamp": [
+          "#000135",
+          "#010178",
+          "#0426AB",
+          "#1E4DD0",
+          "#3B71F7",
+          "#6E9AFD",
+          "#A8C4FE",
+          "#E7EFFF"
+        ]
+      },
+      "track-synapse": {
+        "role": "secondary",
+        "displayName": "Synapse Deep Blue",
+        "canonical": "oklch(45.8% 0.208 264.3)",
+        "tonalRamp": [
+          "#000135",
+          "#010178",
+          "#0426AB",
+          "#1E4DD0",
+          "#3B71F7",
+          "#6E9AFD",
+          "#A8C4FE",
+          "#E7EFFF"
+        ]
+      },
+      "track-mindspear": {
+        "role": "secondary",
+        "displayName": "Mindspear Teal",
+        "canonical": "oklch(54.1% 0.090 195.8)",
+        "tonalRamp": [
+          "#000E0F",
+          "#002A2B",
+          "#004A4A",
+          "#026C6C",
+          "#278E8F",
+          "#50B0B0",
+          "#78D7D7",
+          "#B4FFFE"
+        ]
+      },
+      "track-mail": {
+        "role": "secondary",
+        "displayName": "Mail Wizard Raspberry",
+        "canonical": "oklch(55.5% 0.195 8.4)",
+        "tonalRamp": [
+          "#1E0006",
+          "#48031A",
+          "#780630",
+          "#AB0F49",
+          "#D63866",
+          "#FD5E86",
+          "#FDA9B7",
+          "#FFE8EB"
+        ]
+      },
+      "track-quigen": {
+        "role": "secondary",
+        "displayName": "QuiGen Violet",
+        "canonical": "oklch(51.3% 0.197 300.2)",
+        "tonalRamp": [
+          "#110026",
+          "#31015A",
+          "#540095",
+          "#7234B9",
+          "#9258DE",
+          "#B180FB",
+          "#CEB5FC",
+          "#F1EBFE"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "oklch(19.2% 0.018 289.7)",
+        "tonalRamp": [
+          "#0B0A12",
+          "#24232C",
+          "#3F3E49",
+          "#5D5C67",
+          "#7D7C88",
+          "#9E9DA9",
+          "#C3C2CF",
+          "#EEEDFA"
+        ],
+        "aliases": [
+          "brand"
+        ]
+      },
+      "white": {
+        "role": "neutral",
+        "displayName": "White",
+        "tonalRamp": [
+          "#1A1A1A",
+          "#333333",
+          "#4D4D4D",
+          "#666666",
+          "#808080",
+          "#B3B3B3",
+          "#E6E6E6",
+          "#FFFFFF"
+        ]
+      },
+      "ground": {
+        "role": "neutral",
+        "displayName": "Cool Ground",
+        "canonical": "oklch(97.4% 0.007 277.2)",
+        "tonalRamp": [
+          "#0A0B0E",
+          "#232427",
+          "#3F3F43",
+          "#5C5D61",
+          "#7C7D81",
+          "#9D9EA3",
+          "#C3C4C8",
+          "#EDEEF3"
+        ]
+      },
+      "line": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "oklch(91.1% 0.018 272.3)",
+        "tonalRamp": [
+          "#090B13",
+          "#21242D",
+          "#3C3F4A",
+          "#5A5D68",
+          "#797D88",
+          "#9A9EAA",
+          "#C0C4D0",
+          "#EAEEFB"
+        ]
+      },
+      "field": {
+        "role": "neutral",
+        "displayName": "Field Stroke",
+        "canonical": "oklch(79.7% 0.033 272.2)",
+        "tonalRamp": [
+          "#070A19",
+          "#1E2334",
+          "#393F52",
+          "#575D71",
+          "#767C92",
+          "#979EB4",
+          "#BCC3DA",
+          "#E9EEFF"
+        ]
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "Slate",
+        "canonical": "oklch(42.9% 0.035 276.4)",
+        "tonalRamp": [
+          "#08091A",
+          "#1F2235",
+          "#3B3E53",
+          "#585C72",
+          "#777C93",
+          "#989DB5",
+          "#BEC3DB",
+          "#EAEEFF"
+        ]
+      },
+      "haze": {
+        "role": "neutral",
+        "displayName": "Haze",
+        "canonical": "oklch(92.3% 0.037 270.5)",
+        "tonalRamp": [
+          "#060A1A",
+          "#1D2336",
+          "#383F54",
+          "#565D73",
+          "#757D94",
+          "#959EB6",
+          "#BBC3DD",
+          "#E8EEFF"
+        ],
+        "aliases": [
+          "mist"
+        ]
+      },
+      "fog": {
+        "role": "neutral",
+        "displayName": "Fog",
+        "canonical": "oklch(96.2% 0.018 272.3)",
+        "tonalRamp": [
+          "#090B13",
+          "#21242D",
+          "#3C3F4A",
+          "#5A5D68",
+          "#797D88",
+          "#9A9EAA",
+          "#C0C4D0",
+          "#EAEEFB"
+        ]
+      },
+      "brand-tint": {
+        "role": "neutral",
+        "displayName": "Pale Blue Tint",
+        "canonical": "oklch(95.0% 0.024 270.3)",
+        "tonalRamp": [
+          "#070B15",
+          "#1F2430",
+          "#3B3F4D",
+          "#585D6B",
+          "#787D8C",
+          "#999EAE",
+          "#BEC4D4",
+          "#E8EEFE"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "The BdREN AI wordmark on the sleeve only (68px mobile, 104px sm, clamp to 160px desktop)."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Section headings across all pages, 36px to 48px, balanced wrap."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Product names in the overview card and the products list, 36px to 44px."
+      },
+      "track": {
+        "displayName": "Track",
+        "purpose": "Track names in the sleeve list, 22px to 27px; bold when chosen."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Nunito reading copy, 16px to 18px, measures 34 to 60ch."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Buttons, nav links and track numbers in Fredoka 600."
+      },
+      "bangla": {
+        "displayName": "Bangla",
+        "purpose": "Every lang=bn line, at the size of the line it sits in."
+      }
+    },
+    "shadows": [
+      {
+        "name": "sleeve-lift",
+        "value": "0 24px 50px -24px rgba(20,19,28,0.55)",
+        "purpose": "Only the white overview card over the moving sleeve clip."
+      },
+      {
+        "name": "menu-lift",
+        "value": "0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1)",
+        "purpose": "The header profile dropdown (Tailwind shadow-lg)."
+      },
+      {
+        "name": "focus-halo",
+        "value": "outline: 3px solid #14131C; outline-offset: 2px; box-shadow: 0 0 0 5px #FFFFFF",
+        "purpose": "Global :focus-visible ring, legible on white, ink and every product ground."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-sleeve",
+        "value": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "All sleeve motion."
+      },
+      {
+        "name": "ground-crossfade",
+        "value": "--ground 700ms ease-sleeve",
+        "purpose": "Ground colour change when a track is chosen; needs @property --ground (syntax <color>)."
+      },
+      {
+        "name": "clip-fade",
+        "value": "opacity 800ms ease-sleeve",
+        "purpose": "Clip appearing once loaded (to 55%)."
+      },
+      {
+        "name": "card-lift-in",
+        "value": "translateY(10px) and opacity 0 to rest, 450ms ease-sleeve",
+        "purpose": "Overview card content on each track change."
+      },
+      {
+        "name": "track-indent",
+        "value": "padding-left 350ms ease-sleeve, color 300ms",
+        "purpose": "Hovered or chosen track indents 10px."
+      },
+      {
+        "name": "button-fill",
+        "value": "colors 300ms",
+        "purpose": "Button hover fills."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "none",
+        "purpose": "All of the above stop; clips load paused; smooth scroll off."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sm",
+        "value": "640px"
+      },
+      {
+        "name": "md",
+        "value": "768px"
+      },
+      {
+        "name": "lg",
+        "value": "1024px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Ink pill for the main action on every surface, including white cards over a product ground.",
+      "html": "<a class=\"ds-btn-primary\" href=\"#\">Open Synapse <svg aria-hidden=\"true\" width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M5 12h14M13 6l6 6-6 6\"/></svg></a>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 12px; min-height: 48px; padding: 0 24px; border-radius: 9999px; background: #14131C; color: #FFFFFF; font-family: 'Fredoka', 'Nunito', sans-serif; font-weight: 600; font-size: 16px; text-decoration: none; transition: background-color 300ms; } .ds-btn-primary:hover { background: #10319A; } .ds-btn-primary:focus-visible { outline: 3px solid #14131C; outline-offset: 2px; box-shadow: 0 0 0 5px #FFFFFF; }"
+    },
+    {
+      "name": "Outline Button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "Secondary action on white or ground; fills ink on hover.",
+      "html": "<a class=\"ds-btn-outline\" href=\"#\">See all plans</a>",
+      "css": ".ds-btn-outline { display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: 0 24px; border-radius: 9999px; border: 1px solid #14131C; color: #14131C; background: transparent; font-family: 'Fredoka', 'Nunito', sans-serif; font-weight: 600; font-size: 16px; text-decoration: none; transition: background-color 300ms, color 300ms; } .ds-btn-outline:hover { background: #14131C; color: #FFFFFF; } .ds-btn-outline:focus-visible { outline: 3px solid #14131C; outline-offset: 2px; box-shadow: 0 0 0 5px #FFFFFF; }"
+    },
+    {
+      "name": "Outline Button on Colour",
+      "kind": "button",
+      "refersTo": "button-outline-dark",
+      "description": "Secondary action on a product ground, night or ink; fills white on hover.",
+      "html": "<div class=\"ds-ground-demo\"><a class=\"ds-btn-outline-dark\" href=\"#\">Book a demo</a> <a class=\"ds-btn-white\" href=\"#\">Sign in with BdREN</a></div>",
+      "css": ".ds-ground-demo { display: flex; gap: 12px; flex-wrap: wrap; padding: 24px; background: #0B7F80; } .ds-btn-outline-dark { display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: 0 24px; border-radius: 9999px; border: 2px solid #FFFFFF; color: #FFFFFF; background: transparent; font-family: 'Fredoka', 'Nunito', sans-serif; font-weight: 600; font-size: 16px; text-decoration: none; transition: background-color 300ms, color 300ms; } .ds-btn-outline-dark:hover { background: #FFFFFF; color: #14131C; } .ds-btn-white { display: inline-flex; align-items: center; justify-content: center; min-height: 46px; padding: 0 20px; border-radius: 9999px; background: #FFFFFF; color: #14131C; font-family: 'Fredoka', 'Nunito', sans-serif; font-weight: 600; font-size: 15px; text-decoration: none; transition: background-color 300ms; } .ds-btn-white:hover { background: #EEF2FF; } .ds-btn-outline-dark:focus-visible, .ds-btn-white:focus-visible { outline: 3px solid #14131C; outline-offset: 2px; box-shadow: 0 0 0 5px #FFFFFF; }"
+    },
+    {
+      "name": "Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Text field on white: field-stroke border, 12px corners, ink focus ring with white halo.",
+      "html": "<label class=\"ds-label\">Email<input class=\"ds-input\" type=\"email\" placeholder=\"you@university.ac.bd\"></label>",
+      "css": ".ds-label { display: grid; gap: 6px; font-family: 'Nunito', system-ui, sans-serif; font-weight: 600; color: #14131C; } .ds-input { min-height: 52px; width: 100%; padding: 0 16px; border-radius: 12px; border: 1px solid #B5BCD3; background: #FFFFFF; color: #14131C; font-family: 'Nunito', system-ui, sans-serif; font-size: 16px; font-weight: 400; } .ds-input::placeholder { color: #4A4E63; } .ds-input:focus-visible { outline: 3px solid #14131C; outline-offset: 2px; box-shadow: 0 0 0 5px #FFFFFF; }"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "White 24px-corner card with a hairline border and no shadow, for feature details on white or ground.",
+      "html": "<article class=\"ds-card\"><h3>Letters in Bangla and English</h3><p>Draft, translate and polish official letters in either language.</p></article>",
+      "css": ".ds-card { border-radius: 24px; border: 1px solid #DDE1EE; background: #FFFFFF; padding: 28px; max-width: 360px; color: #14131C; transition: border-color 300ms; } .ds-card:hover { border-color: #14131C; } .ds-card h3 { margin: 0; font-family: 'Nunito', system-ui, sans-serif; font-size: 20px; font-weight: 600; } .ds-card p { margin: 10px 0 0; font-family: 'Nunito', system-ui, sans-serif; line-height: 1.625; color: #4A4E63; }"
+    },
+    {
+      "name": "Header",
+      "kind": "nav",
+      "refersTo": "header",
+      "description": "Night header with ink logo tile, Fredoka links in fog (white underline when current) and the white sign-in pill; transparent over the sleeve and product heroes.",
+      "html": "<header class=\"ds-header\"><a class=\"ds-logo\" href=\"#\"><span>B</span>BdREN AI</a><nav class=\"ds-nav\"><a href=\"#\" aria-current=\"page\">Products</a><a href=\"#\">Pricing</a><a href=\"#\">About</a></nav><a class=\"ds-signin\" href=\"#\">Sign in with BdREN</a></header>",
+      "css": ".ds-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; min-height: 72px; padding: 12px 24px; background: #1846C9; border-bottom: 1px solid #4A72E0; } .ds-logo { display: flex; align-items: center; gap: 10px; font-family: 'Fredoka', 'Nunito', sans-serif; font-size: 20px; font-weight: 700; color: #FFFFFF; text-decoration: none; } .ds-logo span { display: flex; width: 32px; height: 32px; align-items: center; justify-content: center; border-radius: 8px; background: #14131C; font-size: 15px; } .ds-nav { display: flex; gap: 28px; font-family: 'Fredoka', 'Nunito', sans-serif; font-weight: 500; } .ds-nav a { padding: 8px 0; border-bottom: 2px solid transparent; color: #EEF2FF; text-decoration: none; transition: color 150ms, border-color 150ms; } .ds-nav a:hover, .ds-nav a[aria-current=page] { color: #FFFFFF; border-bottom-color: #FFFFFF; } .ds-signin { display: inline-flex; align-items: center; min-height: 46px; padding: 0 20px; border-radius: 9999px; background: #FFFFFF; color: #14131C; font-family: 'Fredoka', 'Nunito', sans-serif; font-weight: 600; font-size: 15px; text-decoration: none; } .ds-signin:hover { background: #EEF2FF; } .ds-header a:focus-visible { outline: 3px solid #14131C; outline-offset: 2px; box-shadow: 0 0 0 5px #FFFFFF; }"
+    },
+    {
+      "name": "Sleeve Track List",
+      "kind": "custom",
+      "refersTo": "track-row",
+      "description": "The sleeve's ruled track list on a product ground: circled numbers, Fredoka names, the chosen track filled and indented.",
+      "html": "<ol class=\"ds-tracks\"><li><button class=\"ds-track is-on\" aria-pressed=\"true\"><span class=\"ds-num\">1</span><span class=\"ds-name\">Synapse</span><span class=\"ds-cat\">AI assistant</span></button></li><li><button class=\"ds-track\" aria-pressed=\"false\"><span class=\"ds-num\">2</span><span class=\"ds-name\">Mindspear</span><span class=\"ds-cat\">Learning</span></button></li><li><button class=\"ds-track\" aria-pressed=\"false\"><span class=\"ds-num\">3</span><span class=\"ds-name\">AI Mail Wizard</span><span class=\"ds-cat\">Email</span></button></li><li><button class=\"ds-track\" aria-pressed=\"false\"><span class=\"ds-num\">4</span><span class=\"ds-name\">QuiGen</span><span class=\"ds-cat\">Quizzes</span></button></li></ol>",
+      "css": ".ds-tracks { --ground: #1846C9; list-style: none; margin: 0; padding: 24px; background: var(--ground); max-width: 580px; } .ds-tracks li { border-top: 2px solid rgba(255,255,255,0.5); } .ds-tracks li:last-child { border-bottom: 2px solid rgba(255,255,255,0.5); } .ds-track { display: grid; grid-template-columns: 34px 1fr auto; align-items: baseline; gap: 8px; width: 100%; min-height: 52px; padding: 10px 0; background: none; border: 0; text-align: left; font-family: 'Fredoka', 'Nunito', sans-serif; color: rgba(255,255,255,0.78); cursor: pointer; transition: color 0.3s, padding-left 0.35s cubic-bezier(0.16,1,0.3,1); } .ds-track:hover, .ds-track.is-on { color: #FFFFFF; padding-left: 10px; } .ds-num { display: flex; width: 28px; height: 28px; align-self: center; align-items: center; justify-content: center; border-radius: 9999px; border: 2px solid currentColor; font-size: 14px; font-weight: 600; transition: background-color 0.3s, color 0.3s; } .ds-track.is-on .ds-num { background: #FFFFFF; border-color: #FFFFFF; color: var(--ground); } .ds-name { font-size: 27px; font-weight: 500; } .ds-track.is-on .ds-name { font-weight: 700; } .ds-cat { font-size: 15px; font-weight: 500; } .ds-track:focus-visible { outline: 3px solid #14131C; outline-offset: 2px; box-shadow: 0 0 0 5px #FFFFFF; } @media (prefers-reduced-motion: reduce) { .ds-track { transition: none; } }"
+    },
+    {
+      "name": "Sleeve Overview Card",
+      "kind": "card",
+      "refersTo": "sleeve-card",
+      "description": "White 28px card lifted off the product ground with the one soft ink shadow; name, summary, ticked points, ink pill.",
+      "html": "<div class=\"ds-sleeve\"><article class=\"ds-ov\"><h2>Mindspear</h2><p>Course and study help for students and teachers.</p><ul><li><svg aria-hidden=\"true\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4 12.5l5 5L20 6\"/></svg>Works in Bangla and English</li><li><svg aria-hidden=\"true\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4 12.5l5 5L20 6\"/></svg>One BdREN account</li></ul><a href=\"#\">Open Mindspear</a></article></div>",
+      "css": ".ds-sleeve { padding: 32px; background: #0B7F80; } .ds-ov { max-width: 400px; padding: 28px; border-radius: 28px; background: #FFFFFF; color: #14131C; box-shadow: 0 24px 50px -24px rgba(20,19,28,0.55); } .ds-ov h2 { margin: 0; font-family: 'Fredoka', 'Nunito', sans-serif; font-size: 44px; font-weight: 700; line-height: 1; letter-spacing: -0.025em; } .ds-ov p { margin: 12px 0 0; font-family: 'Nunito', system-ui, sans-serif; line-height: 1.625; color: #4A4E63; } .ds-ov ul { display: grid; gap: 8px; margin: 16px 0 0; padding: 0; list-style: none; font-family: 'Nunito', system-ui, sans-serif; font-size: 15px; } .ds-ov li { display: flex; gap: 10px; } .ds-ov svg { flex: none; margin-top: 2px; } .ds-ov a { display: inline-flex; margin-top: 24px; min-height: 48px; align-items: center; padding: 0 24px; border-radius: 9999px; background: #14131C; color: #FFFFFF; font-family: 'Fredoka', 'Nunito', sans-serif; font-weight: 600; text-decoration: none; transition: background-color 300ms; } .ds-ov a:hover { background: #10319A; } .ds-ov a:focus-visible { outline: 3px solid #14131C; outline-offset: 2px; box-shadow: 0 0 0 5px #FFFFFF; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Four-Track Sleeve",
+    "overview": "BdREN AI is pressed like a record sleeve: four products, four tracks, each with its own flat, saturated ground. The first screen fills completely with the chosen product's colour, a huge rounded wordmark sits on it, and the products line up as a short ruled track list. Choosing a track floods the whole ground with that product's colour. Below the sleeve the pages return to white and a cool pale ground, and the four colours shrink to markers: numbered discs, bullet dots, category names.\n\nThe world is friendly and plain-spoken, not corporate. Fredoka's rounded letterforms carry display and controls, Nunito carries reading, and Baloo Da 2 carries Bangla at equal standing. Shapes are soft (pill controls, 24 to 28px card corners) and colour is flat: no gradients between hues, no textures, no glows. Depth comes from coloured fields meeting white, not from shadows. Ink (#14131C) anchors the system: primary pills, the footer, the focus ring and text selection.\n\nImagery is a product clip printed into the ground like a duotone (grayscale, multiplied by the ground colour, faded behind the wordmark). The current clips are labelled placeholders, captioned \"Sample clip, not product footage\" on the page, until real screen recordings replace them.",
+    "keyCharacteristics": [
+      "One flat saturated ground per product; white is the relief colour on it.",
+      "Ink for primary actions and the footer; deep blue (night) for site chrome and the Suite band.",
+      "Fredoka display and controls, Nunito reading, Baloo Da 2 Bangla.",
+      "Pill buttons, soft 24 to 28px containers, 2px ruled rows.",
+      "Flat by default; one soft lift only where a white card sits on a coloured ground.",
+      "Motion is a colour cross-fade and a small lift-in; all of it stops under reduced motion."
+    ],
+    "rules": [
+      {
+        "name": "The One Ground Rule",
+        "body": "A surface carries one product colour as its ground, never two side by side. The other products appear only as markers (discs, dots, category text) on white.",
+        "section": "colors"
+      },
+      {
+        "name": "The White Relief Rule",
+        "body": "On a product ground, text and controls are white, or a white card holding ink. Haze is a secondary-text tint for night and ink only; it is not cleared for reading text on teal or raspberry.",
+        "section": "colors"
+      },
+      {
+        "name": "The Ink Anchor Rule",
+        "body": "The primary action is an ink pill on every surface, including on white cards over a product ground. Product colours are never a button fill.",
+        "section": "colors"
+      },
+      {
+        "name": "The Rounded Voice Rule",
+        "body": "Anything the visitor reads as a name or presses as a control is set in Fredoka; anything they read as an explanation is Nunito.",
+        "section": "typography"
+      },
+      {
+        "name": "The Equal Bangla Rule",
+        "body": "Bangla text is marked lang=\"bn\" and set in Baloo Da 2 at the size of the line it sits in (0.9em inside display-scale taglines), never as a smaller caption.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat Field Rule",
+        "body": "Cards on white or ground use a 1px hairline border, never a shadow. A shadow is earned only by a white surface floating over a coloured or moving ground.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do give each product exactly one flat ground and keep the other three as markers on white (The One Ground Rule).",
+      "Do set text on a product ground in white; use haze only on night and ink.",
+      "Do make the primary action an ink pill, with deep-blue hover, on every surface.",
+      "Do use Fredoka for names and controls, Nunito for explanations, and Baloo Da 2 with lang=\"bn\" for every Bangla line.",
+      "Do separate cards on white with a 1px hairline and list sequences with 2px rules instead of shadows.",
+      "Do read a product's colour from content/products.ts rather than hard-coding it in a component.",
+      "Do caption any placeholder clip or image as a sample on the page, and give every moving clip a pause control and a reduced-motion stop."
+    ],
+    "donts": [
+      "Don't fill a button with a product colour or set long reading text in a product colour.",
+      "Don't blend between two hues; the only gradient in the world is the sleeve's same-colour fade from ground to clear.",
+      "Don't put a shadow on a card that sits on white or ground.",
+      "Don't use sharp corners on controls or containers; nothing interactive is square.",
+      "Don't set Bangla smaller than the English beside it or in the Latin fonts."
+    ]
+  }
+}

@@ -32,15 +32,15 @@ export default function ProductPage({ params }: Params) {
   ];
 
   return (
-    <Shell current="/#products">
-      <section aria-labelledby="p-title" className="bg-night px-6 pt-10 text-fog">
+    <Shell current="/#products" overlayHeader>
+      <section aria-labelledby="p-title" style={{ backgroundColor: product.color }} className="px-6 pt-36 text-white md:pt-28">
         <div className="mx-auto max-w-site">
-          <nav aria-label="Breadcrumb" className="flex gap-2 text-sm text-haze">
-            <a href="/" className="hover:text-white">
+          <nav aria-label="Breadcrumb" className="flex gap-2 text-sm text-white">
+            <a href="/" className="underline-offset-4 hover:underline">
               Home
             </a>
             <span aria-hidden="true">/</span>
-            <a href="/#products" className="hover:text-white">
+            <a href="/#products" className="underline-offset-4 hover:underline">
               Products
             </a>
             <span aria-hidden="true">/</span>
@@ -50,14 +50,13 @@ export default function ProductPage({ params }: Params) {
           </nav>
           <div className="mt-14 flex flex-wrap items-end justify-between gap-12">
             <div className="min-w-0 flex-[1_1_560px]">
-              <p className="eyebrow text-brand-glow">{product.category}</p>
               <h1
                 id="p-title"
-                className="mt-3.5 font-display text-6xl font-bold leading-none tracking-tight text-white md:text-[72px]"
+                className="font-display text-6xl font-bold leading-none tracking-tight text-white md:text-[72px]"
               >
                 {product.name}
               </h1>
-              <p className="mt-6 max-w-[620px] text-lg leading-relaxed text-mist md:text-xl">{product.intro}</p>
+              <p className="mt-6 max-w-[620px] text-lg leading-relaxed text-white md:text-xl">{product.intro}</p>
             </div>
             <div className="flex flex-wrap gap-3">
               <a href="#plans" className="btn-primary min-h-[52px]">
@@ -68,8 +67,8 @@ export default function ProductPage({ params }: Params) {
               </a>
             </div>
           </div>
-          <figure className="mt-14 flex h-[280px] items-center justify-center rounded-t-[20px] border border-b-0 border-night-edge bg-night-raised md:h-[440px]">
-            <figcaption className="rounded-[10px] border border-dashed border-night-stroke px-5 py-3.5 text-[15px] text-haze">
+          <figure className="mt-14 flex h-[150px] items-center justify-center rounded-t-[28px] border-2 border-b-0 border-white/40 bg-white/10 md:h-[200px]">
+            <figcaption className="rounded-full border-2 border-dashed border-white/60 px-5 py-3.5 text-[15px] text-white">
               Product screenshot: {product.screenshot}
             </figcaption>
           </figure>
@@ -101,8 +100,7 @@ export default function ProductPage({ params }: Params) {
             {product.builtIn && (
               <article className="card flex flex-wrap items-center justify-between gap-6 p-7 sm:col-span-2 lg:col-span-3">
                 <div className="min-w-0 flex-[1_1_420px]">
-                  <p className="eyebrow text-[13px] text-brand-text">{product.builtIn.eyebrow}</p>
-                  <h3 className="mt-2 text-[22px] font-semibold">{product.builtIn.title}</h3>
+                  <h3 className="text-[22px] font-semibold">{product.builtIn.title}, built into Synapse</h3>
                   <p className="mt-2.5 leading-relaxed text-muted">{product.builtIn.body}</p>
                 </div>
               </article>
@@ -115,8 +113,7 @@ export default function ProductPage({ params }: Params) {
         <section id="admins" aria-labelledby="a-title" className="scroll-mt-16 bg-ink px-6 py-24 text-fog">
           <div className="mx-auto flex max-w-site flex-wrap gap-14">
             <div className="min-w-0 flex-[1_1_380px]">
-              <p className="eyebrow text-brand-glow">For institution admins</p>
-              <h2 id="a-title" className="h-section mt-3.5 text-white">
+              <h2 id="a-title" className="h-section text-white">
                 {product.admin.title}
               </h2>
               <p className="mt-4 text-lg leading-relaxed text-mist">{product.admin.intro}</p>
@@ -149,8 +146,8 @@ export default function ProductPage({ params }: Params) {
                   <strong className="block text-lg">{p.name}</strong>
                   <span className="mt-1.5 block leading-snug text-muted">{p.line}</span>
                 </span>
-                <span aria-hidden="true" className="text-2xl text-brand-text">
-                  →
+                <span aria-hidden="true" className="text-brand-text">
+                  <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
                 </span>
               </a>
             ))}

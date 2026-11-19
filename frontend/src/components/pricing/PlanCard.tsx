@@ -5,10 +5,10 @@ export function PlanCard({ plan, href = "/about#contact" }: { plan: Plan; href?:
   const muted = dark ? "text-mist" : "text-muted";
   return (
     <article
-      className={`flex flex-col rounded-[18px] p-7 ${dark ? "bg-ink text-white" : "border border-line bg-white text-ink"}`}
+      className={`flex flex-col rounded-[24px] p-7 ${dark ? "bg-night text-white" : "border border-line bg-white text-ink"}`}
     >
       {dark && (
-        <p className="mb-3 self-start rounded-full bg-brand px-2.5 py-1 text-[13px] font-semibold text-white">
+        <p className="mb-3 self-start rounded-full bg-white px-3 py-1 text-[13px] font-semibold text-ink">
           Recommended
         </p>
       )}
@@ -25,11 +25,11 @@ export function PlanCard({ plan, href = "/about#contact" }: { plan: Plan; href?:
               height="18"
               viewBox="0 0 24 24"
               fill="none"
-              stroke="#C2501A"
+              stroke="currentColor"
               strokeWidth="2.4"
               strokeLinecap="round"
               strokeLinejoin="round"
-              className="mt-0.5 flex-none"
+              className={`mt-0.5 flex-none ${dark ? "text-white" : "text-brand-text"}`}
             >
               <path d="M5 12l5 5 9-10" />
             </svg>
