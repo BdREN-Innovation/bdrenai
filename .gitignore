@@ -9,3 +9,5 @@ node_modules/
 backups/
 deploy/nginx/certs/
 .zitadel-secrets.json
+caddy-root.crt
+TEST_ACCOUNTS.md

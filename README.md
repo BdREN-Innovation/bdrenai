@@ -94,6 +94,30 @@ docker compose exec backend python manage.py grant_platform_role --email you@exa
 Reload `/admin/` to get the platform console. Other roles: `--role identity_administrator`,
 `organization_administrator`, `product_manager`, `billing_administrator`, `support_administrator`; `--revoke` removes.
 
+### 2.6 Test accounts (local only)
+
+On a fresh database, seed ready-made accounts instead of signing up by hand:
+
+```bash
+docker compose exec backend python manage.py seed_test_accounts
+```
+
+| Email | Role | Password |
+|---|---|---|
+| `superadmin@bdren.test` | Platform superadmin | `Bdren-Test-2026!` |
+| `inst-admin@bdren.test` | Institution admin of Sylhet Agricultural University (`sau`, 50 seats) | `Bdren-Test-2026!` |
+| `member@bdren.test` | Member of Sylhet Agricultural University | `Bdren-Test-2026!` |
+
+Sign in at http://bdren.localhost:8080/admin/ (superadmin, institution admin) or http://bdren.localhost:8080/
+(member). The command creates each account in ZITADEL with a verified email, mirrors it in Django and gives it its
+role. Running it again resets the passwords and changes nothing else; `--password '<new>'` sets a different one. It
+needs `ZITADEL_SERVICE_TOKEN` (§2.3) and refuses to run unless the identity provider is local (`localhost`,
+`*.localhost` or `*.test`), so these accounts can never be created on a real deployment.
+
+Keep any other test accounts you create (other institutions, feature databases, Synapse SSO users) in
+`TEST_ACCOUNTS.md` at the repository root. It is git-ignored: passwords for accounts made by hand never go in the
+repository.
+
 ## 3. Develop with live reload
 
 Keep ZITADEL, Postgres and Redis in Docker (section 2 done once), stop the Dockerised apps, and run the backend,
