@@ -65,3 +65,25 @@ def verify_email(user_id, code):
 
 def resend_email_code(user_id):
     _call("POST", f"/v2/users/{user_id}/email/resend", {"sendCode": {}})
+
+
+def find_user_id(email):
+    """The ZITADEL user id whose email is `email`, or None."""
+    body = {"queries": [{"emailQuery": {"emailAddress": email, "method": "TEXT_QUERY_METHOD_EQUALS_IGNORE_CASE"}}]}
+    result = _call("POST", "/v2/users", body).get("result") or []
+    return result[0]["userId"] if result else None
+
+
+def create_verified_user(*, first_name, last_name, email, password):
+    """A user with a verified email and a password that need not be changed: for local test accounts only."""
+    body = {
+        "username": email,
+        "profile": {"givenName": first_name, "familyName": last_name},
+        "email": {"email": email, "isVerified": True},
+        "password": {"password": password, "changeRequired": False},
+    }
+    return _call("POST", "/v2/users/human", body)["userId"]
+
+
+def set_password(user_id, password):
+    _call("POST", f"/v2/users/{user_id}/password", {"newPassword": {"password": password, "changeRequired": False}})
