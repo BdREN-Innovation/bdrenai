@@ -5,6 +5,7 @@ here logs credentials, tokens or payer numbers: only the endpoint, HTTP status a
 """
 import logging
 from decimal import Decimal
+from urllib.parse import urlsplit
 
 import requests
 from django.conf import settings
@@ -137,7 +138,25 @@ def create_payment(*, amount, invoice, payer_reference, callback_url=None):
     })
     if not data.get("paymentID") or not data.get("bkashURL"):
         raise BkashError("bad_response", "bKash did not return a checkout page.")
+    if not is_checkout_url(data["bkashURL"]):
+        log.warning("bkash returned an unexpected checkout host")
+        raise BkashError("bad_response", "bKash returned an unexpected checkout address.")
     return data
+
+
+CHECKOUT_HOSTS = ("bka.sh", "bkash.com")
+
+
+def is_checkout_url(value):
+    """True for an https URL on bKash's own domains (bka.sh, bkash.com and their subdomains), without credentials."""
+    try:
+        parts = urlsplit(value or "")
+    except ValueError:
+        return False
+    host = (parts.hostname or "").lower()
+    if parts.scheme != "https" or parts.username or parts.password or not host:
+        return False
+    return any(host == domain or host.endswith("." + domain) for domain in CHECKOUT_HOSTS)
 
 
 def execute(payment_id):

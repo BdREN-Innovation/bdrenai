@@ -312,6 +312,12 @@ def find_institution(slug):
 
 # ---------------------------------------------------------------- bKash checkout
 
+def resume_url(payment):
+    """bKash's checkout page for a pending payment that bKash still lists as Initiated, or None."""
+    resumable = payment.bkash_payment_id and payment.bkash_status == bkash.INITIATED
+    return payment.bkash_checkout_url if resumable and bkash.is_checkout_url(payment.bkash_checkout_url) else None
+
+
 def open_checkout(org, user, package, kind, *, ip_address=None):
     """Validates and stores a pending bKash payment. Call with the organization locked (portal `managing`), so two
     admins cannot start two checkouts at once."""
@@ -326,7 +332,7 @@ def open_checkout(org, user, package, kind, *, ip_address=None):
         raise ServiceError(
             "checkout_in_progress",
             "A bKash payment for this institution was started a few minutes ago. Finish it or wait a few minutes.",
-            status=409, extra={"payment": shapes.payment(started, portal=True)},
+            status=409, extra={"payment": shapes.payment(started, portal=True), "redirect_url": resume_url(started)},
         )
     quote = quotes.quote(account, package, kind, public_only=True)
     if not quotes.offered(account, package, kind):
@@ -355,7 +361,7 @@ def send_to_bkash(payment, *, actor=None, ip_address=None):
         raise ServiceError("bkash_error", "bKash could not start the payment. Try again later.", status=502) from None
     PaymentRecord.objects.filter(pk=payment.pk).update(
         bkash_payment_id=data["paymentID"], bkash_status=(data.get("transactionStatus") or bkash.INITIATED)[:32],
-        updated_at=timezone.now(),
+        bkash_checkout_url=data["bkashURL"][:1000], updated_at=timezone.now(),
     )
     return data["bkashURL"]
 

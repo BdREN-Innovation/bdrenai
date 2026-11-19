@@ -300,9 +300,43 @@ def test_checkout_in_progress_returns_the_pending_payment(fake_bkash, admin, pac
     assert error(r) == (409, "checkout_in_progress")
     payment = PaymentRecord.objects.get()
     assert r.json()["payment"]["id"] == str(payment.id) and r.json()["message"]
+    assert r.json()["redirect_url"] == created()["bkashURL"]
     age(payment, minutes=11)
     fake_bkash.on("checkout/create", created(payment_id="TR0011second"))
     assert checkout(c, packages["basic"]).status_code == 201
+
+
+def test_checkout_in_progress_offers_no_link_once_bkash_moved_on(fake_bkash, admin, packages):
+    fake_bkash.on("checkout/create", created())
+    c = signed_in(admin.user)
+    checkout(c, packages["basic"])
+    PaymentRecord.objects.update(bkash_status="Cancelled")
+    r = checkout(c, packages["basic"])
+    assert error(r) == (409, "checkout_in_progress") and r.json()["redirect_url"] is None
+
+
+@pytest.mark.parametrize("url", [
+    "http://sandbox.payment.bkash.com/?paymentId=x",
+    "https://evil.example/?paymentId=x",
+    "https://bkash.com.evil.example/?paymentId=x",
+    "https://user:pw@sandbox.payment.bkash.com/?paymentId=x",
+])
+def test_checkout_refuses_a_checkout_page_off_bkash(fake_bkash, admin, packages, url):
+    fake_bkash.on("checkout/create", {**created(), "bkashURL": url})
+    r = checkout(signed_in(admin.user), packages["basic"])
+    assert error(r) == (502, "bkash_error")
+    payment = PaymentRecord.objects.get()
+    assert payment.status == Status.FAILED and "unexpected checkout address" in payment.failure_reason
+    assert payment.bkash_checkout_url == ""
+
+
+def test_bkash_checkout_hosts():
+    from apps.billing.bkash import is_checkout_url
+    assert is_checkout_url("https://sandbox.payment.bkash.com/?paymentId=TR1")
+    assert is_checkout_url("https://tokenized.pay.bka.sh/?paymentId=TR1")
+    assert not is_checkout_url("https://bkash.com.example.org/")
+    assert not is_checkout_url("javascript:alert(1)")
+    assert not is_checkout_url("")
 
 
 def test_bkash_not_configured_is_503(no_bkash, admin, packages):

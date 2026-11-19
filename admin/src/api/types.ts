@@ -774,7 +774,15 @@ export interface SubscriptionListParams extends ListParams {
   auto_renew?: 'false';
 }
 
+/** Something the institution can pay for now (renewal, upgrade or first package), with its price quote. */
+export interface BillingOffer {
+  package: PackageRef & { audience: string; apps: AppRef[] };
+  kind: PurchaseKind;
+  quote: Quote;
+}
+
 export interface InstitutionBilling {
   subscriptions: BillingSubscription[];
   payments: Payment[];
+  offers: BillingOffer[];
 }

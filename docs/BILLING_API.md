@@ -302,3 +302,26 @@ Where the build is more specific than the sections above:
   opened; renewals still start at the current period's end; manual payments keep the dates the superadmin chose.
   Found in the live sandbox run of 2026-11-19 (payment `TR0011vAVyXMV1795060527293`, trx `DKJ70PXGQR`, refund
   `DKJ50PXGQZ`): checkout 09:55, completion 10:02.
+
+## Follow-ups from the institution console build (2026-11-19)
+
+- `409 checkout_in_progress` now also returns `"redirect_url"`: bKash's checkout page for that pending payment while
+  bKash still lists it as `Initiated`, else `null`. The console can offer "Continue to bKash" with it.
+- bKash's checkout URL is validated before it is stored or returned: `https`, no credentials, host `bka.sh` /
+  `bkash.com` or a subdomain of either. Anything else fails the payment (`failure_reason` "bKash returned an
+  unexpected checkout address.") and checkout answers 502 `bkash_error`. Stored on the payment as
+  `bkash_checkout_url` (internal, not in the `Payment` shape).
+- Errors the tables above did not list:
+  | status | `error` | where / when |
+  |---|---|---|
+  | 403 | `not_institution_admin` | any portal billing route: the user is a member but not an owner/admin of the institution |
+  | 403 | `institution_inactive` | any portal billing route: the institution was removed (deactivated) |
+  | 409 | `no_account` | checkout, downgrade, billing page, superadmin manual payment/quote: the institution has no billing account (data fault; every institution created through the API has one) |
+- `GET billing/` (portal) and `GET institutions/<slug>/billing/` (superadmin) return the **latest 50** payments.
+  The full history is in the superadmin `billing/payments/?institution=<slug>` list (paginated); the portal has no
+  longer history view yet.
+- Checkout never returns `renewal_stopped`; only `POST billing/downgrade/` does.
+- `GET billing/` (portal) also returns `"downgrades"`: `[{subscription_id, package{id,name,kind,audience,apps},
+  amount, currency, billing_interval, seat_limit}]` — cheaper packages each renewing subscription can be scheduled to
+  (added on feature/institution-billing).
+- The superadmin `institutions/<slug>/billing/` response includes `offers` (same shape as the portal's).
