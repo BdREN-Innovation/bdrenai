@@ -1,6 +1,7 @@
 import { ApiError } from '@/api/client';
 import { formatDateTime, formatMoney, formatNumber } from '@/lib/format';
 import { portalErrorMessage } from '../errors';
+import { isBkashUrl } from './rules';
 
 export type BillingAction = 'checkout' | 'downgrade' | 'cancel';
 
@@ -41,11 +42,21 @@ function seatsMessage(error: ApiError, packageName: string | undefined): string 
   return `Your institution uses ${formatNumber(seats.used)} seats; ${name} allows ${formatNumber(seats.cap)}. Remove members until no more than ${formatNumber(seats.cap)} seats are in use, or choose a bigger package.`;
 }
 
+/** bKash's page for the payment already started, when the API returns one the console may follow. */
+export function resumeUrl(error: unknown): string | null {
+  if (!(error instanceof ApiError) || error.code !== 'checkout_in_progress') return null;
+  const url = error.body.redirect_url;
+  return url && isBkashUrl(url) ? url : null;
+}
+
 function inProgressMessage(error: ApiError): string {
   const payment = error.body.payment;
-  if (!payment) return 'A bKash payment for your institution was started a few minutes ago. Finish it in the bKash window, or wait 10 minutes and try again.';
+  const next = resumeUrl(error)
+    ? 'Continue it on bKash, or wait 10 minutes and start a new payment.'
+    : 'bKash no longer accepts it; wait 10 minutes and try again.';
+  if (!payment) return `A bKash payment for your institution was started a few minutes ago. ${next}`;
   const what = payment.package ? ` for ${payment.package.name}` : '';
-  return `A bKash payment of ${formatMoney(payment.amount, payment.currency)}${what} was started at ${formatDateTime(payment.created_at)} and isn't finished. Finish it in the bKash window, or wait 10 minutes and try again.`;
+  return `A bKash payment of ${formatMoney(payment.amount, payment.currency)}${what} was started at ${formatDateTime(payment.created_at)} and isn't finished. ${next}`;
 }
 
 /** One sentence an institution admin can act on, for an error from checkout, downgrade or cancelling a downgrade. */

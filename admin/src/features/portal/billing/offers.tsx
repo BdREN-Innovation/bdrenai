@@ -6,7 +6,7 @@ import type { Offer, PortalPayment } from '../types';
 import { KIND_TEXT, OFFER_GROUPS, browser, chargedQuote, isBkashUrl, matchesQuote, periodText, replacedBy, timing } from './rules';
 import { Button, Card, Dialog, Notice } from '@/components/ui';
 import { useCheckout } from '../queries';
-import { billingErrorMessage } from './errors';
+import { billingErrorMessage, resumeUrl } from './errors';
 import { ApiError } from '@/api/client';
 import { formatMoney } from '@/lib/format';
 
@@ -86,6 +86,11 @@ function CheckoutDialog({ slug, offer, current, onClose, onShowPayment }: Checko
 
   const error = checkout.error;
   const started = error instanceof ApiError && error.code === 'checkout_in_progress' ? error.body.payment : undefined;
+  const resume = resumeUrl(error);
+  const continueOnBkash = (url: string) => {
+    setLeaving(true);
+    browser.open(url);
+  };
   const busy = checkout.isPending || leaving;
 
   return (
@@ -95,15 +100,17 @@ function CheckoutDialog({ slug, offer, current, onClose, onShowPayment }: Checko
       onOpenChange={(open) => !open && onClose()}
       title={`Pay ${amount} with bKash`}
       description="Check what you are paying for. bKash's own page then asks for your bKash number, the code it texts you and your PIN."
-      onSubmit={pay}
+      onSubmit={started ? undefined : pay}
       footer={
         <>
           <Button variant="ghost" onClick={onClose} disabled={busy}>
-            Cancel
+            {started ? 'Not now' : 'Cancel'}
           </Button>
-          <Button type="submit" variant="primary" loading={busy} disabled={blocked}>
-            {leaving ? 'Opening bKash…' : 'Continue to bKash'}
-          </Button>
+          {started ? null : (
+            <Button type="submit" variant="primary" loading={busy} disabled={blocked}>
+              {leaving ? 'Opening bKash…' : 'Continue to bKash'}
+            </Button>
+          )}
         </>
       }
     >
@@ -126,10 +133,19 @@ function CheckoutDialog({ slug, offer, current, onClose, onShowPayment }: Checko
       {error ? (
         <Notice tone="danger">
           <p>{billingErrorMessage(error, 'checkout', offer.package.name)}</p>
-          {started ? (
-            <Button size="sm" variant="secondary" className="mt-2" onClick={() => onShowPayment(started.id)}>
-              See the pending payment
-            </Button>
+          {started || resume ? (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {resume ? (
+                <Button size="sm" variant="primary" onClick={() => continueOnBkash(resume)} disabled={leaving}>
+                  Continue to bKash
+                </Button>
+              ) : null}
+              {started ? (
+                <Button size="sm" variant="secondary" onClick={() => onShowPayment(started.id)}>
+                  See the pending payment
+                </Button>
+              ) : null}
+            </div>
           ) : null}
         </Notice>
       ) : null}

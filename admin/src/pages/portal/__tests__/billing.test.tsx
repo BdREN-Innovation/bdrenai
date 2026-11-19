@@ -403,6 +403,43 @@ describe('Checkout', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     await waitFor(() => expect(document.getElementById('payment-pay-pending')).toHaveFocus());
   });
+
+  it('continues the payment already in progress on bKash when the API returns its page', async () => {
+    const open = vi.spyOn(browser, 'open').mockImplementation(() => undefined);
+    const page = 'https://sandbox.payment.bkash.com/?paymentId=TR0011pending';
+    const { api } = renderBilling('/portal/du/billing', {
+      [`GET ${BILLING}`]: withPayments(pendingPayment),
+      [`POST ${CHECKOUT}`]: reply(409, { error: 'checkout_in_progress', payment: pendingPayment, redirect_url: page }),
+    });
+    const { user, dialog } = await openRenewCheckout();
+    await user.click(within(dialog).getByRole('button', { name: 'Continue to bKash' }));
+    const alert = await within(dialog).findByRole('alert');
+    expect(alert).toHaveTextContent('Continue it on bKash');
+    expect(within(dialog).getAllByRole('button', { name: 'Continue to bKash' })).toHaveLength(1);
+    expect(within(dialog).getByRole('button', { name: 'Not now' })).toBeInTheDocument();
+    await user.click(within(alert).getByRole('button', { name: 'Continue to bKash' }));
+    expect(open).toHaveBeenCalledWith(page);
+    expect(api.find('POST', CHECKOUT)).toHaveLength(1);
+  });
+
+  it.each([
+    ['no page', null],
+    ['an http page', 'http://sandbox.payment.bkash.com/?paymentId=x'],
+    ['another host', 'https://bkash.com.evil.example/pay'],
+  ])('offers no resume button when the API returns %s', async (_label, redirect) => {
+    const open = vi.spyOn(browser, 'open').mockImplementation(() => undefined);
+    renderBilling('/portal/du/billing', {
+      [`GET ${BILLING}`]: withPayments(pendingPayment),
+      [`POST ${CHECKOUT}`]: reply(409, { error: 'checkout_in_progress', payment: pendingPayment, redirect_url: redirect }),
+    });
+    const { user, dialog } = await openRenewCheckout();
+    await user.click(within(dialog).getByRole('button', { name: 'Continue to bKash' }));
+    const alert = await within(dialog).findByRole('alert');
+    expect(alert).toHaveTextContent('bKash no longer accepts it; wait 10 minutes and try again.');
+    expect(within(alert).queryByRole('button', { name: 'Continue to bKash' })).not.toBeInTheDocument();
+    expect(within(alert).getByRole('button', { name: 'See the pending payment' })).toBeInTheDocument();
+    expect(open).not.toHaveBeenCalled();
+  });
 });
 
 describe('Scheduled downgrades', () => {

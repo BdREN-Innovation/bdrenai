@@ -25,6 +25,8 @@ export interface ApiErrorBody {
   seats?: Seats;
   /** 409 `checkout_in_progress`: the bKash payment already started. */
   payment?: Pick<Payment, 'id' | 'amount' | 'currency' | 'package' | 'status' | 'created_at'>;
+  /** 409 `checkout_in_progress`: bKash's page for that payment while bKash still accepts it, else null. */
+  redirect_url?: string | null;
 }
 
 /** A sign-in domain another institution already lists (409 `domain_taken`). */
