@@ -1,0 +1,14 @@
+# Local-dev TLS front for ZITADEL so OIDC clients that require HTTPS (e.g. Synapse) can use it.
+# Talks to ZITADEL directly: nginx would overwrite X-Forwarded-Proto with http.
+{
+	skip_install_trust
+}
+auth.bdren.localhost:8443 {
+	tls internal
+	handle /ui/v2/login* {
+		reverse_proxy zitadel-login:3000
+	}
+	handle {
+		reverse_proxy h2c://zitadel-api:8080
+	}
+}

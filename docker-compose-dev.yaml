@@ -1,0 +1,36 @@
+# LOCAL DEVELOPMENT ONLY, used together with docker-compose.yml. `.env` names both files
+# (COMPOSE_FILE=docker-compose.yml:docker-compose-dev.yaml), so plain `docker compose ...` commands load them.
+# Production runs `-f docker-compose.yml -f docker-compose.prod.yml`; explicit -f files win over COMPOSE_FILE,
+# so this file is never part of a production stack.
+#
+# - Publishes Postgres and Redis on loopback so a host-run Django dev server can reach them.
+# - caddy: HTTPS for ZITADEL at https://auth.bdren.localhost:8443 with Caddy's local CA. Needed when the issuer is
+#   HTTPS (ZITADEL_EXTERNALPORT=8443, ZITADEL_EXTERNALSECURE=true, ZITADEL_PUBLIC_SCHEME=https in .env), which apps
+#   such as Synapse require. Harmless with the plain-HTTP issuer on :8080.
+#   Root CA for host tools: docker compose cp caddy:/data/caddy/pki/authorities/local/root.crt ./caddy-root.crt
+# - mailpit: catches every email the stack sends (ZITADEL codes, invitations). Inbox: http://localhost:8025
+services:
+  postgres:
+    ports: ["127.0.0.1:5433:5432"]
+  redis:
+    ports: ["127.0.0.1:6380:6379"]
+  caddy:
+    image: caddy:2.10.2-alpine
+    restart: unless-stopped
+    ports: ["8443:8443"]
+    volumes:
+      - ./deploy/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+    networks:
+      edge: {}
+      internal:
+        aliases: [auth.bdren.localhost]
+    depends_on: [nginx]
+  mailpit:
+    image: axllent/mailpit:v1.21.8
+    restart: unless-stopped
+    ports: ["127.0.0.1:8025:8025"]
+    networks: [internal]
+
+volumes:
+  caddy-data:

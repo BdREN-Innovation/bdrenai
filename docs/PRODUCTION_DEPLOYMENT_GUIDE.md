@@ -9,7 +9,7 @@
    ```bash
    docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build --wait
    ```
-   *(Using `-f docker-compose.yml -f docker-compose.prod.yml` skips `docker-compose.override.yml`, ensuring PostgreSQL and Redis expose zero host ports.)*
+   *(Passing `-f docker-compose.yml -f docker-compose.prod.yml` overrides any `COMPOSE_FILE` in `.env`, so the local-only `docker-compose-dev.yaml` is never loaded and PostgreSQL and Redis expose zero host ports. Remove the `COMPOSE_FILE` line from a production `.env` anyway.)*
 4. **Provision OIDC Clients & Revoke Bootstrap PAT**:
    - Run `scripts/bootstrap_zitadel.py`, copy the `bdren-platform-api` client ID/secret into `.env`, restart `backend`, and delete the `bootstrap-admin` machine user in the ZITADEL Console.
 5. **Schedule Automated Backups**:

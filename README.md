@@ -42,9 +42,34 @@ Avoid `$` in values: Compose treats it as a variable.
 docker compose up -d --build --wait
 ```
 
-The first run takes a few minutes. `docker-compose.override.yml` loads automatically and publishes Postgres on
-`127.0.0.1:5433` and Redis on `127.0.0.1:6380` for section 3. On every start the backend runs migrations and
-seeds the product catalog.
+The first run takes a few minutes. Locally the stack is two files: `docker-compose.yml` (the same stack production
+runs) and `docker-compose-dev.yaml` (local-only extras). `.env` names both in `COMPOSE_FILE`, copied from
+`.env.example`, so every plain `docker compose ...` command in this README loads them. If you made `.env` before
+this line existed, add `COMPOSE_FILE=docker-compose.yml:docker-compose-dev.yaml` to it. `docker-compose-dev.yaml`
+adds:
+
+- Postgres on `127.0.0.1:5433` and Redis on `127.0.0.1:6380`, for section 3.
+- **Mailpit**, which catches every email the stack sends (sign-up codes, password resets, invitations):
+  http://localhost:8025.
+- **Caddy**, which serves ZITADEL over HTTPS at `https://auth.bdren.localhost:8443` with a local certificate
+  authority. It is idle unless you choose the HTTPS issuer below.
+
+On every start the backend runs migrations and seeds the product catalog.
+
+**HTTPS issuer (optional, needed for Synapse sign-in).** Some apps, Synapse among them, refuse a plain-HTTP identity
+provider. To use `https://auth.bdren.localhost:8443` as the issuer, set these before ZITADEL's first start (the
+issuer is fixed when its database is created) and use that address wherever this README says
+`http://auth.bdren.localhost:8080`:
+
+```bash
+ZITADEL_EXTERNALPORT=8443
+ZITADEL_EXTERNALSECURE=true
+ZITADEL_PUBLIC_SCHEME=https
+```
+
+Browsers warn about the local certificate once; continue to `auth.bdren.localhost`. Tools on your machine need the
+root certificate: `docker compose cp caddy:/data/caddy/pki/authorities/local/root.crt ./caddy-root.crt`
+(git-ignored), then pass it to them, for example `NODE_EXTRA_CA_CERTS=$PWD/caddy-root.crt` for Synapse.
 
 ### 2.3 Register the apps in ZITADEL (once per fresh database)
 
