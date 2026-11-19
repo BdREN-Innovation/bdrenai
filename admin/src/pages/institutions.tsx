@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { Ban, Building2, ExternalLink, Mail, Plus, RotateCcw, Trash2 } from 'lucide-react';
+import { Ban, Banknote, Building2, ExternalLink, Mail, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import type { InstitutionListItem, InstitutionRef, InstitutionStatus } from '@/api/types';
 import type { StatusRequest } from '@/features/institutions/status';
 import {
@@ -22,6 +22,7 @@ import {
 import { InstitutionStatusDialog } from '@/features/institutions/status';
 import { CreateInstitutionDialog } from '@/features/institutions/create';
 import { InviteAdminDialog } from '@/features/invitations/invite';
+import { RecordPaymentDialog } from '@/features/billing/record';
 import { formatDate, formatNumber } from '@/lib/format';
 import { useInstitutions } from '@/api/queries';
 import { Page } from '@/components/layout/Page';
@@ -41,12 +42,14 @@ function rowActions(
   open: () => void,
   invite: (institution: InstitutionRef) => void,
   setStatus: (request: StatusRequest) => void,
+  record: (institution: InstitutionRef) => void,
 ) {
   const ref = { slug: institution.slug, name: institution.name };
   const removed = institution.status === 'deactivated';
   return [
     { label: 'Open', icon: ExternalLink, onSelect: open },
     { label: 'Invite admin', icon: Mail, onSelect: () => invite(ref), disabled: removed },
+    { label: 'Record payment', icon: Banknote, onSelect: () => record(ref), disabled: removed },
     institution.status === 'active'
       ? { label: 'Suspend', icon: Ban, danger: true, onSelect: () => setStatus({ institution: ref, action: 'suspend' }) }
       : { label: 'Reactivate', icon: RotateCcw, onSelect: () => setStatus({ institution: ref, action: 'reactivate' }) },
@@ -62,6 +65,7 @@ export function InstitutionsPage() {
   const [creating, setCreating] = useState(false);
   const [inviting, setInviting] = useState<InstitutionRef | null>(null);
   const [statusRequest, setStatusRequest] = useState<StatusRequest | null>(null);
+  const [recordFor, setRecordFor] = useState<InstitutionRef | null>(null);
   const list = useInstitutions({ q, status: status || undefined, page, page_size: PAGE_SIZE });
   const results = list.data?.results ?? [];
   const filtered = q !== '' || status !== '';
@@ -176,7 +180,7 @@ export function InstitutionsPage() {
                     <Td className="text-right">
                       <Menu
                         label={`Actions for ${institution.name}`}
-                        actions={rowActions(institution, () => open(institution.slug), setInviting, setStatusRequest)}
+                        actions={rowActions(institution, () => open(institution.slug), setInviting, setStatusRequest, setRecordFor)}
                       />
                     </Td>
                   </Tr>
@@ -192,6 +196,7 @@ export function InstitutionsPage() {
 
       <CreateInstitutionDialog open={creating} onOpenChange={setCreating} />
       <InviteAdminDialog open={inviting !== null} onOpenChange={(value) => !value && setInviting(null)} institution={inviting ?? undefined} />
+      <RecordPaymentDialog open={recordFor !== null} onOpenChange={(value) => !value && setRecordFor(null)} institution={recordFor ?? undefined} />
       <InstitutionStatusDialog request={statusRequest} onClose={() => setStatusRequest(null)} />
     </Page>
   );

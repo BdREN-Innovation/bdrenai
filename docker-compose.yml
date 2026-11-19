@@ -71,6 +71,15 @@ services:
       INVITATION_RESEND_COOLDOWN_MINUTES: ${INVITATION_RESEND_COOLDOWN_MINUTES:-5}
       INVITATION_SEND_RATE: ${INVITATION_SEND_RATE:-120/hour}
       TRUSTED_PROXIES: ${TRUSTED_PROXIES:-127.0.0.0/8,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}
+      BKASH_BASE_URL: ${BKASH_BASE_URL:-https://tokenized.sandbox.bka.sh/v1.2.0-beta/tokenized/}
+      BKASH_APP_KEY: ${BKASH_APP_KEY:-}
+      BKASH_APP_SECRET: ${BKASH_APP_SECRET:-}
+      BKASH_USERNAME: ${BKASH_USERNAME:-}
+      BKASH_PASSWORD: ${BKASH_PASSWORD:-}
+      BKASH_CALLBACK_URL: ${BKASH_CALLBACK_URL:-http://api.bdren.localhost:8080/api/v1/payments/bkash/callback/}
+      BKASH_TIMEOUT_SECONDS: ${BKASH_TIMEOUT_SECONDS:-30}
+      ADMIN_PUBLIC_URL: ${ADMIN_PUBLIC_URL:-http://admin.bdren.localhost:8080/admin}
+      BILLING_RECEIPT_PREFIX: ${BILLING_RECEIPT_PREFIX:-BDR}
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/api/v1/health/"]
       interval: 10s
@@ -90,6 +99,32 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     command: ["python", "manage.py", "send_invitation_emails", "--loop"]
+    environment: *backend-env
+    healthcheck:
+      disable: true
+    networks: [internal]
+    depends_on:
+      backend: {condition: service_healthy}
+
+  billing-reconciler:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: ["python", "manage.py", "reconcile_bkash", "--loop"]
+    environment: *backend-env
+    healthcheck:
+      disable: true
+    networks: [internal]
+    depends_on:
+      backend: {condition: service_healthy}
+
+  expiry-reminders:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: ["python", "manage.py", "send_expiry_reminders", "--loop"]
     environment: *backend-env
     healthcheck:
       disable: true

@@ -111,7 +111,27 @@ export const superadmin = {
   patch: <T>(path: string, body: unknown) =>
     request<T>(`${SUPERADMIN_ROOT}/${path}`, { method: 'PATCH', body }),
   delete: <T>(path: string) => request<T>(`${SUPERADMIN_ROOT}/${path}`, { method: 'DELETE' }),
+  upload: <T>(path: string, file: File) => upload<T>(`${SUPERADMIN_ROOT}/${path}`, file),
 };
+
+/** Multipart POST of one file as `file` (attachments); the browser sets the boundary header. */
+export async function upload<T>(path: string, file: File): Promise<T> {
+  const form = new FormData();
+  form.append('file', file);
+  const response = await fetch(path, {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'X-CSRFToken': await csrfToken() },
+    credentials: 'include',
+    body: form,
+  });
+  if (response.status === 401) {
+    redirectToLogin();
+    throw new ApiError(401, await parseError(response));
+  }
+  if (!response.ok) throw new ApiError(response.status, await parseError(response));
+  const text = await response.text();
+  return (text ? JSON.parse(text) : undefined) as T;
+}
 
 export async function logout(): Promise<void> {
   const result = await request<{ redirect: string | null }>(`${API_ROOT}/auth/logout/`, {
@@ -144,6 +164,15 @@ const ERROR_TEXT: Record<string, string> = {
   not_covered: 'This member is not on the institution package.',
   personal_plan_member: 'This member pays for a personal plan, so the institution cannot change their membership.',
   renewal_stopped: 'This subscription is set not to renew, so it cannot be renewed.',
+  covered_by_bundle: 'The institution already gets this app from a combined package. Renew or upgrade that package instead.',
+  free_package: 'Free packages cannot be bought.',
+  package_unavailable: 'This package is archived or inactive, or one of its apps is inactive, so it cannot be bought.',
+  refund_exceeds_payment: 'The refund is more than what is left of this payment.',
+  not_refundable: 'Only completed payments can be refunded.',
+  bkash_error: 'bKash did not accept the request. Nothing was recorded; try again later.',
+  bkash_unavailable: 'bKash is not set up on this server.',
+  not_pending: 'Only a pending manual payment can be verified or rejected.',
+  receipt_unavailable: 'A receipt exists only for completed payments.',
 };
 
 function domainTakenMessage(conflicts: DomainConflict[]): string {

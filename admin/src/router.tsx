@@ -1,7 +1,7 @@
 import { createRootRoute, createRoute, createRouter, redirect } from '@tanstack/react-router';
 import type { RouterHistory } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
-import type { InvitationStatus } from '@/api/types';
+import type { InvitationStatus, PaymentTab } from '@/api/types';
 import { InstitutionDetailPage, INSTITUTION_TABS } from '@/pages/institution';
 import type { InstitutionTab } from '@/pages/institution';
 import { CONFIGURATION_TABS } from '@/pages/configuration/tabs';
@@ -17,6 +17,9 @@ import { Shell } from '@/components/layout/Shell';
 import { UsersPage } from '@/pages/users';
 import { AuditPage } from '@/pages/audit';
 import { SoonPage } from '@/pages/soon';
+import { BillingPage } from '@/pages/billing';
+import { SUBSCRIPTION_VIEWS, SubscriptionsPage } from '@/pages/subscriptions';
+import type { SubscriptionView } from '@/pages/subscriptions';
 import { HelpPage } from '@/pages/help';
 import { AccessGate } from '@/features/portal/access';
 import { PortalShell } from '@/features/portal/shell';
@@ -62,6 +65,28 @@ const invitationsRoute = createRoute({
     return status ? { status } : {};
   },
   component: InvitationsPage,
+});
+
+const PAYMENT_TABS: PaymentTab[] = ['bkash', 'manual', 'attention'];
+
+const billingRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/billing',
+  validateSearch: (search: Record<string, unknown>): { tab?: PaymentTab } => {
+    const tab = PAYMENT_TABS.find((value) => value === search.tab);
+    return tab ? { tab } : {};
+  },
+  component: BillingPage,
+});
+
+const subscriptionsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/subscriptions',
+  validateSearch: (search: Record<string, unknown>): { view?: SubscriptionView } => {
+    const view = SUBSCRIPTION_VIEWS.find((value) => value === search.view);
+    return view && view !== 'all' ? { view } : {};
+  },
+  component: SubscriptionsPage,
 });
 
 const configurationRoute = createRoute({
@@ -116,8 +141,8 @@ const routeTree = rootRoute.addChildren([
   page('/audit', AuditPage),
   page('/help', HelpPage),
   page('/usage', () => <SoonPage area="usage" />),
-  page('/billing', () => <SoonPage area="billing" />),
-  page('/subscriptions', () => <SoonPage area="subscriptions" />),
+  billingRoute,
+  subscriptionsRoute,
   configurationRoute,
   page('/configuration/packages/$id', PackageDetailPage),
   portalHomeRoute,

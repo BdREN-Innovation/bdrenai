@@ -145,7 +145,7 @@ class SubscribePackageView(APIView):
             account=acct,
             amount=pkg.price,
             currency=pkg.currency,
-            provider=request.data.get("payment_provider", PaymentRecord.Provider.MANUAL_OFFLINE),
+            provider=request.data.get("payment_provider", "manual_offline"),
             reference=payment_ref,
             notes=f"Subscription request for {pkg.product.name} - {pkg.name} (v{ver.version})",
         )

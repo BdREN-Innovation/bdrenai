@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views
+from . import billing, views
 
 urlpatterns = [
     path("session/", views.SessionView.as_view()),
@@ -15,6 +15,7 @@ urlpatterns = [
     path("institutions/<slug:slug>/members/", views.InstitutionMembersView.as_view()),
     path("institutions/<slug:slug>/history/", views.InstitutionHistoryView.as_view()),
     path("institutions/<slug:slug>/import/", views.InstitutionImportView.as_view()),
+    path("institutions/<slug:slug>/billing/", billing.InstitutionBillingView.as_view()),
     path("memberships/<uuid:pk>/", views.MembershipView.as_view()),
     path("memberships/<uuid:pk>/remove/", views.MembershipRemoveView.as_view()),
     path("users/", views.UsersView.as_view()),
@@ -36,4 +37,24 @@ urlpatterns = [
     path("config/packages/<uuid:pk>/versions/", views.ConfigPackageVersionsView.as_view()),
     path("config/packages/<uuid:pk>/archive/", views.ConfigPackageArchiveView.as_view(archived=True)),
     path("config/packages/<uuid:pk>/restore/", views.ConfigPackageArchiveView.as_view(archived=False)),
+    path("billing/summary/", billing.SummaryView.as_view()),
+    path("billing/payments/", billing.PaymentsView.as_view()),
+    path("billing/payments/manual/", billing.ManualPaymentView.as_view()),
+    path("billing/payments/<uuid:pk>/", billing.PaymentView.as_view()),
+    path("billing/payments/<uuid:pk>/verify/", billing.VerifyView.as_view()),
+    path("billing/payments/<uuid:pk>/reject/", billing.RejectView.as_view()),
+    path("billing/payments/<uuid:pk>/refund/", billing.RefundView.as_view()),
+    path("billing/payments/<uuid:pk>/attachment/", billing.AttachmentView.as_view()),
+    path("billing/payments/<uuid:pk>/receipt/", billing.ReceiptView.as_view()),
+    path("billing/quote/", billing.QuoteView.as_view()),
+    path("billing/subscriptions/", billing.SubscriptionsView.as_view()),
+    path(
+        "billing/subscriptions/<uuid:pk>/cancel-scheduled-change/",
+        billing.SubscriptionActionView.as_view(action="cancel-scheduled-change"),
+    ),
+    path("billing/subscriptions/<uuid:pk>/stop-renewal/", billing.SubscriptionActionView.as_view(action="stop-renewal")),
+    path(
+        "billing/subscriptions/<uuid:pk>/resume-renewal/",
+        billing.SubscriptionActionView.as_view(action="resume-renewal"),
+    ),
 ]

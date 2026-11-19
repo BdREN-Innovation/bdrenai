@@ -24,13 +24,15 @@ describe('app shell', () => {
     renderApp('/', { [`GET ${API}/dashboard/`]: emptyDashboard });
     const nav = await screen.findByRole('navigation', { name: 'Main' });
     expect(within(nav).getByRole('link', { name: 'Institutions' })).toHaveAttribute('href', '/admin/institutions');
-    expect(within(nav).getByRole('link', { name: 'Billing (coming soon)' })).toBeInTheDocument();
+    expect(within(nav).getByRole('link', { name: 'Usage (coming soon)' })).toBeInTheDocument();
+    expect(within(nav).getByRole('link', { name: 'Billing' })).toHaveAttribute('href', '/admin/billing');
+    expect(within(nav).getByRole('link', { name: 'Subscriptions' })).toHaveAttribute('href', '/admin/subscriptions');
     expect(within(nav).getByRole('link', { name: 'Dashboard' })).toHaveAttribute('aria-current', 'page');
   });
 
   it('explains a soon page and which phase brings it', async () => {
-    renderApp('/subscriptions');
-    expect(await screen.findByRole('heading', { name: 'Subscriptions is coming in Phase 2' })).toBeInTheDocument();
+    renderApp('/usage');
+    expect(await screen.findByRole('heading', { name: 'Usage is coming in Phase 4' })).toBeInTheDocument();
   });
 
   it('opens the command menu with the keyboard and jumps to an institution found on the server', async () => {

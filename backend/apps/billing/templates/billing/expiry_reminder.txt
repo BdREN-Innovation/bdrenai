@@ -1,0 +1,5 @@
+Hello,
+
+Your {{ package }} period ended on {{ ended }}. To keep using {{ apps }}, renew from your institution console or contact BdREN.
+
+BDREN AI

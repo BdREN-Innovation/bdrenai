@@ -151,6 +151,22 @@ INVITATION_RESEND_COOLDOWN_MINUTES = int(env("INVITATION_RESEND_COOLDOWN_MINUTES
 # Per admin, across the superadmin and portal APIs: invite, resend, resend-expired, import, create-with-admin.
 INVITATION_SEND_RATE = env("INVITATION_SEND_RATE", "120/hour")
 
+# --- Billing (docs/BILLING_API.md) ---
+# bKash tokenized checkout. Enabled only when key, secret, username and password are all set.
+# Empty values fall back to the defaults (sandbox base URL, local callback, 30 s).
+BKASH_BASE_URL = env("BKASH_BASE_URL") or "https://tokenized.sandbox.bka.sh/v1.2.0-beta/tokenized/"
+BKASH_APP_KEY = env("BKASH_APP_KEY", "")
+BKASH_APP_SECRET = env("BKASH_APP_SECRET", "")
+BKASH_USERNAME = env("BKASH_USERNAME", "")
+BKASH_PASSWORD = env("BKASH_PASSWORD", "")
+# Public URL of GET /api/v1/payments/bkash/callback/ (bKash sends the payer's browser there).
+BKASH_CALLBACK_URL = env("BKASH_CALLBACK_URL") or "http://api.bdren.localhost:8080/api/v1/payments/bkash/callback/"
+BKASH_TIMEOUT_SECONDS = float(env("BKASH_TIMEOUT_SECONDS") or "30")
+BKASH_CALLBACK_RATE = env("BKASH_CALLBACK_RATE", "30/min")
+# Where the callback sends the browser back: <ADMIN_PUBLIC_URL>/portal/<slug>/billing?payment=<id>&result=...
+ADMIN_PUBLIC_URL = env("ADMIN_PUBLIC_URL", "http://localhost:5174/admin").rstrip("/")
+BILLING_RECEIPT_PREFIX = env("BILLING_RECEIPT_PREFIX", "BDR")
+
 # Peers whose X-Real-IP header names the client (the bundled nginx). The backend is reachable only on the
 # internal Docker network, so private ranges are trusted by default; any other peer is recorded as itself.
 TRUSTED_PROXIES = env_list("TRUSTED_PROXIES", "127.0.0.0/8,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16")

@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { Link, getRouteApi } from '@tanstack/react-router';
-import { Ban, Building2, Mail, Pencil, RotateCcw, Trash2 } from 'lucide-react';
+import { Ban, Banknote, Building2, Mail, Pencil, RotateCcw, Trash2 } from 'lucide-react';
 import type { StatusRequest } from '@/features/institutions/status';
 import { Button, EmptyState, ErrorState, LoadingState, StatusChip, Tabs } from '@/components/ui';
 import { InstitutionStatusDialog } from '@/features/institutions/status';
 import { InviteAdminDialog } from '@/features/invitations/invite';
+import { RecordPaymentDialog } from '@/features/billing/record';
 import { InstitutionInvitations } from './invitations';
 import { useInstitution } from '@/api/queries';
 import { Page } from '@/components/layout/Page';
@@ -12,11 +13,12 @@ import { ApiError } from '@/api/client';
 import { EditInstitutionDialog } from './edit';
 import { TYPE_LABEL } from '@/lib/labels';
 import { History } from './history';
+import { Billing } from './billing';
 import { Overview } from './overview';
 import { Members } from './members';
 import { Import } from './import';
 
-export const INSTITUTION_TABS = ['overview', 'members', 'invitations', 'import', 'history'] as const;
+export const INSTITUTION_TABS = ['overview', 'members', 'invitations', 'import', 'billing', 'history'] as const;
 export type InstitutionTab = (typeof INSTITUTION_TABS)[number];
 
 const TAB_LABEL: Record<InstitutionTab, string> = {
@@ -24,6 +26,7 @@ const TAB_LABEL: Record<InstitutionTab, string> = {
   members: 'Members',
   invitations: 'Invitations',
   import: 'Import',
+  billing: 'Billing',
   history: 'History',
 };
 
@@ -36,6 +39,7 @@ export function InstitutionDetailPage() {
   const detail = useInstitution(slug);
   const [editing, setEditing] = useState(false);
   const [inviting, setInviting] = useState(false);
+  const [recording, setRecording] = useState(false);
   const [statusRequest, setStatusRequest] = useState<StatusRequest | null>(null);
 
   if (detail.isPending) {
@@ -111,6 +115,11 @@ export function InstitutionDetailPage() {
             </Button>
           ) : null}
           {!removed ? (
+            <Button icon={Banknote} onClick={() => setRecording(true)}>
+              Record payment
+            </Button>
+          ) : null}
+          {!removed ? (
             <Button variant="primary" icon={Mail} onClick={() => setInviting(true)}>
               Invite admin
             </Button>
@@ -137,11 +146,13 @@ export function InstitutionDetailPage() {
         {tab === 'members' ? <Members institution={institution} /> : null}
         {tab === 'invitations' ? <InstitutionInvitations institution={institution} onInvite={() => setInviting(true)} /> : null}
         {tab === 'import' ? <Import institution={institution} /> : null}
+        {tab === 'billing' ? <Billing institution={institution} onRecordPayment={() => setRecording(true)} /> : null}
         {tab === 'history' ? <History slug={institution.slug} /> : null}
       </Tabs>
 
       <EditInstitutionDialog institution={institution} open={editing} onOpenChange={setEditing} />
       <InviteAdminDialog open={inviting} onOpenChange={setInviting} institution={inviting ? ref : undefined} />
+      <RecordPaymentDialog open={recording} onOpenChange={setRecording} institution={ref} />
       <InstitutionStatusDialog request={statusRequest} onClose={() => setStatusRequest(null)} />
     </Page>
   );

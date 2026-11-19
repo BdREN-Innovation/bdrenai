@@ -1,4 +1,4 @@
-import { Ban, BadgeCheck, CircleCheck, CircleDashed, CircleX, Clock, Mail, MailCheck, TriangleAlert, UserRound } from 'lucide-react';
+import { Ban, BadgeCheck, CircleCheck, CircleDashed, CircleX, Clock, Mail, MailCheck, TriangleAlert, Undo2, UserRound } from 'lucide-react';
 import type { ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import type { MemberLabel } from '@/api/types';
@@ -41,6 +41,14 @@ const STATUS: Record<string, { tone: Tone; icon: LucideIcon }> = {
   revoked: { tone: 'neutral', icon: CircleX },
   deactivated: { tone: 'neutral', icon: CircleX },
   deprovisioned: { tone: 'neutral', icon: CircleX },
+  completed: { tone: 'success', icon: CircleCheck },
+  trial: { tone: 'info', icon: Clock },
+  past_due: { tone: 'warning', icon: TriangleAlert },
+  failed: { tone: 'danger', icon: CircleX },
+  rejected: { tone: 'danger', icon: Ban },
+  cancelled: { tone: 'neutral', icon: CircleX },
+  refunded: { tone: 'neutral', icon: Undo2 },
+  partially_refunded: { tone: 'warning', icon: Undo2 },
 };
 
 const STATUS_LABEL: Record<string, string> = {

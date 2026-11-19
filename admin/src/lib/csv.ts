@@ -65,3 +65,10 @@ export function csvToImportRows(text: string): ImportRowInput[] {
     role: cell(cells, roleAt).toLowerCase() || 'member',
   }));
 }
+
+const csvCell = (value: string) => (/[",\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value);
+
+/** RFC 4180 text from rows of cells; a cell with a comma, quote or newline is quoted. */
+export function toCsv(rows: string[][]): string {
+  return rows.map((cells) => cells.map(csvCell).join(',')).join('\r\n');
+}

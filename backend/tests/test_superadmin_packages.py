@@ -716,7 +716,10 @@ def test_single_packages_of_an_app_that_is_not_active_cannot_be_subscribed(clien
     assert not Subscription.objects.exists()
 
 
-def test_bundles_cannot_be_subscribed_yet(client, catalog):
+def test_bundles_are_subscribed_through_billing_not_the_self_service_catalog(client, catalog):
+    """Combined packages are sold per institution through billing (bKash checkout or a payment recorded by a
+    superadmin), so a subscription to one now covers each of its apps. The self-service catalog endpoint stays
+    single-package only: a bundle id there is still `package_not_found`."""
     suite = create(client, bundle_draft())
     buyer = make_user("buyer@du.ac.bd")
     account, _ = Account.objects.get_or_create(account_type=Account.Type.PERSONAL, owner_user=buyer)
@@ -725,9 +728,12 @@ def test_bundles_cannot_be_subscribed_yet(client, catalog):
     r = c.post("/api/v1/catalog/subscribe/", {"package_id": suite["id"], "account_id": str(account.id)},
                content_type="application/json")
     assert (r.status_code, r.json()["error"]) == (404, "package_not_found")
-    with pytest.raises(ValueError):
-        create_subscription(account=account, package=Package.objects.get(pk=suite["id"]))
     assert not Subscription.objects.exists()
+
+    sub = subscribe("sau", suite["id"])
+    assert sub.product_id is None and sub.status == Subscription.Status.ACTIVE
+    covered = set(Entitlement.objects.filter(source_subscription=sub).values_list("product__slug", flat=True))
+    assert covered == {"synapse", "mindspear"}
 
 
 def test_legacy_publish_carries_the_previous_terms(catalog):

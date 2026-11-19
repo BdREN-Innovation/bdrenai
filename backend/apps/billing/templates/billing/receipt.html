@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Receipt {{ number }}</title>
+<style>
+  :root { color-scheme: light; }
+  body { margin: 0; padding: 32px 16px; background: #f4f6f7; font-family: Inter, Arial, sans-serif; color: #0f2427; }
+  main { max-width: 640px; margin: 0 auto; background: #fff; border-radius: 12px; padding: 32px; }
+  h1 { margin: 0 0 4px; font-size: 22px; }
+  .muted { color: #5b6b6d; font-size: 14px; }
+  table { width: 100%; border-collapse: collapse; margin: 24px 0; font-size: 15px; }
+  th { text-align: left; font-weight: 600; width: 40%; padding: 8px 0; color: #5b6b6d; vertical-align: top; }
+  td { padding: 8px 0; }
+  .total td, .total th { border-top: 1px solid #dfe5e6; font-size: 17px; color: #0f2427; }
+  .print { margin-top: 16px; }
+  @media print { body { background: #fff; padding: 0; } main { box-shadow: none; } .print { display: none; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>BDREN AI payment receipt</h1>
+  <p class="muted">Receipt {{ number }} &middot; {{ completed }}</p>
+  <table>
+    <tr><th>Paid by</th><td>{{ payer }}</td></tr>
+    <tr><th>Package</th><td>{{ package }}</td></tr>
+    {% if apps %}<tr><th>Apps</th><td>{{ apps }}</td></tr>{% endif %}
+    {% if period %}<tr><th>Period</th><td>{{ period }}</td></tr>{% endif %}
+    <tr><th>Method</th><td>{{ method }}</td></tr>
+    {% if reference %}<tr><th>Reference</th><td>{{ reference }}</td></tr>{% endif %}
+    {% if refunded %}<tr><th>Refunded</th><td>{{ refunded }}</td></tr>{% endif %}
+    <tr class="total"><th>Amount</th><td>{{ amount }}</td></tr>
+  </table>
+  <p class="muted">Bangladesh Research and Education Network (BdREN). This receipt was issued electronically.</p>
+  <button class="print" type="button" onclick="window.print()">Print</button>
+</main>
+</body>
+</html>

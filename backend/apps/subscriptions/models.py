@@ -5,7 +5,8 @@ from django.db import models
 
 
 class Subscription(models.Model):
-    """Binds a Personal or Organization Account to a specific PackageVersion of a Product."""
+    """Binds a Personal or Organization Account to a PackageVersion: of one Product (`product`), or of a combined
+    package (`product` null) covering every app in `package_version.products`."""
 
     class Status(models.TextChoices):
         TRIAL = "trial"
@@ -16,7 +17,9 @@ class Subscription(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     account = models.ForeignKey("accounts.Account", on_delete=models.PROTECT, related_name="subscriptions")
-    product = models.ForeignKey("products.Product", on_delete=models.PROTECT, related_name="subscriptions")
+    product = models.ForeignKey(
+        "products.Product", null=True, blank=True, on_delete=models.PROTECT, related_name="subscriptions"
+    )
     package_version = models.ForeignKey(
         "packages.PackageVersion", on_delete=models.PROTECT, related_name="subscriptions"
     )
@@ -33,6 +36,8 @@ class Subscription(models.Model):
     billing_interval = models.CharField(max_length=16)
     # False: runs to `expires_at` and is never renewed (set when the owner joins an institution's package).
     auto_renew = models.BooleanField(default=True)
+    # When the end-of-period reminder was emailed to the institution's admins; cleared on renewal.
+    expiry_reminder_sent_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

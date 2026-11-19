@@ -22,6 +22,12 @@ export const keys = {
   configApps: ['config', 'apps'] as const,
   packages: (params: t.PackageListParams) => ['config', 'packages', params] as const,
   package: (id: string) => ['config', 'package', id] as const,
+  billingSummary: (range: t.DateRange) => ['billing', 'summary', range] as const,
+  payments: (params: t.PaymentListParams) => ['billing', 'payments', params] as const,
+  payment: (id: string) => ['billing', 'payment', id] as const,
+  quote: (params: t.QuoteParams) => ['billing', 'quote', params] as const,
+  subscriptions: (params: t.SubscriptionListParams) => ['billing', 'subscriptions', params] as const,
+  institutionBilling: (slug: string) => ['billing', 'institution', slug] as const,
 };
 
 /** Prefixes refreshed after any write: lists, counts and history all move together. */
@@ -33,6 +39,7 @@ const AFTER_WRITE: QueryKey[] = [
   ['admins'],
   ['audit'],
   ['config'],
+  ['billing'],
 ];
 
 function useWrite<TBody, TResult>(fn: (body: TBody) => Promise<TResult>) {
@@ -286,4 +293,85 @@ export type PackageStatusAction = 'archive' | 'restore';
 export const usePackageStatus = (id: string) =>
   useWrite(({ action, reason }: { action: PackageStatusAction; reason: string }) =>
     superadmin.post<t.PackageDetail>(`config/packages/${enc(id)}/${action}/`, { reason }),
+  );
+
+export function useBillingSummary(range: t.DateRange) {
+  return useQuery({
+    queryKey: keys.billingSummary(range),
+    queryFn: ({ signal }) => superadmin.get<t.BillingSummary>('billing/summary/', { ...range }, signal),
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function usePayments(params: t.PaymentListParams) {
+  return useQuery({
+    queryKey: keys.payments(params),
+    queryFn: ({ signal }) => superadmin.get<t.Page<t.Payment>>('billing/payments/', { ...params }, signal),
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function usePayment(id: string | null) {
+  return useQuery({
+    queryKey: keys.payment(id ?? ''),
+    queryFn: ({ signal }) => superadmin.get<t.Payment>(`billing/payments/${enc(id ?? '')}/`, undefined, signal),
+    enabled: id !== null,
+  });
+}
+
+export function useQuote(params: t.QuoteParams | null) {
+  return useQuery({
+    queryKey: keys.quote(params ?? { institution: '', package: '', kind: 'new', periods: 1 }),
+    queryFn: ({ signal }) => superadmin.get<t.Quote>('billing/quote/', { ...params }, signal),
+    enabled: params !== null,
+    retry: false,
+  });
+}
+
+export function useSubscriptions(params: t.SubscriptionListParams) {
+  return useQuery({
+    queryKey: keys.subscriptions(params),
+    queryFn: ({ signal }) =>
+      superadmin.get<t.Page<t.BillingSubscription>>('billing/subscriptions/', { ...params }, signal),
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useInstitutionBilling(slug: string | null) {
+  return useQuery({
+    queryKey: keys.institutionBilling(slug ?? ''),
+    queryFn: ({ signal }) =>
+      superadmin.get<t.InstitutionBilling>(`institutions/${enc(slug ?? '')}/billing/`, undefined, signal),
+    enabled: slug !== null,
+  });
+}
+
+export const useRecordPayment = () =>
+  useWrite((body: t.ManualPaymentBody) => superadmin.post<t.Payment>('billing/payments/manual/', body));
+
+export const useVerifyPayment = () =>
+  useWrite(({ id, notes }: { id: string; notes?: string }) =>
+    superadmin.post<t.Payment>(`billing/payments/${enc(id)}/verify/`, notes ? { notes } : {}),
+  );
+
+export const useRejectPayment = () =>
+  useWrite(({ id, reason }: { id: string; reason: string }) =>
+    superadmin.post<t.Payment>(`billing/payments/${enc(id)}/reject/`, { reason }),
+  );
+
+export const useRefundPayment = () =>
+  useWrite(({ id, body }: { id: string; body: t.RefundBody }) =>
+    superadmin.post<t.Payment>(`billing/payments/${enc(id)}/refund/`, body),
+  );
+
+export const useUploadAttachment = () =>
+  useWrite(({ id, file }: { id: string; file: File }) =>
+    superadmin.upload<t.Payment>(`billing/payments/${enc(id)}/attachment/`, file),
+  );
+
+export type SubscriptionAction = 'cancel-scheduled-change' | 'stop-renewal' | 'resume-renewal';
+
+export const useSubscriptionAction = () =>
+  useWrite(({ id, action }: { id: string; action: SubscriptionAction }) =>
+    superadmin.post<t.BillingSubscription>(`billing/subscriptions/${enc(id)}/${action}/`),
   );

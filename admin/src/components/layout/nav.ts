@@ -61,8 +61,8 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     title: 'Billing',
     items: [
-      { label: 'Billing', path: '/billing', icon: CreditCard, soon: true, keywords: ['payments', 'bkash'] },
-      { label: 'Subscriptions', path: '/subscriptions', icon: Repeat, soon: true },
+      { label: 'Billing', path: '/billing', icon: CreditCard, keywords: ['payments', 'bkash', 'refunds', 'receipts'] },
+      { label: 'Subscriptions', path: '/subscriptions', icon: Repeat, keywords: ['renewals', 'downgrades', 'expiring'] },
     ],
   },
   {

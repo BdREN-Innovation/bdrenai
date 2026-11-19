@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { csvToImportRows, parseCsv } from './csv';
+import { csvToImportRows, parseCsv, toCsv } from './csv';
 import { parseDomains, slugify } from './slug';
 
 describe('parseCsv', () => {
@@ -31,5 +31,11 @@ describe('slug helpers', () => {
 
   it('parses and validates sign-in domains', () => {
     expect(parseDomains('du.ac.bd, @EXAMPLE.edu  nope')).toEqual({ domains: ['du.ac.bd', 'example.edu'], invalid: ['nope'] });
+  });
+});
+
+describe('toCsv', () => {
+  it('quotes cells with commas, quotes and newlines', () => {
+    expect(toCsv([['a', 'b,c'], ['say "hi"', 'two\nlines']])).toBe('a,"b,c"\r\n"say ""hi""","two\nlines"');
   });
 });

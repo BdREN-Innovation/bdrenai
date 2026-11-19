@@ -1,0 +1,14 @@
+Hello,
+
+We received your payment for BDREN AI. Thank you.
+
+Receipt: {{ number }}
+Amount: {{ amount }}
+Package: {{ package }}{% if period %}
+Period: {{ period }}{% endif %}
+Method: {{ method }}{% if reference %}
+Reference: {{ reference }}{% endif %}
+
+You can see this receipt in your institution console.
+
+BDREN AI

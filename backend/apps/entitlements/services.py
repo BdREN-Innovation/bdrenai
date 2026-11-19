@@ -17,7 +17,7 @@ from apps.organizations.models import Membership, Organization
 from apps.packages.models import Package, PackageLimit, PackageVersion
 from apps.products.models import Feature, Product
 from apps.subscriptions.models import Subscription
-from apps.subscriptions.plans import PLAN_STATUSES, has_personal_plan
+from apps.subscriptions.plans import PLAN_STATUSES, covers_q, has_personal_plan
 
 from .models import Entitlement
 
@@ -50,7 +50,8 @@ def current_period_bounds(period: str, now=None):
 
 @transaction.atomic
 def sync_subscription_entitlements(subscription: Subscription):
-    """Rebuilds subscription-derived Entitlements from the Subscription's current PackageVersion."""
+    """Rebuilds subscription-derived Entitlements from the Subscription's current PackageVersion. A combined
+    package's limits apply to each feature's own app."""
     Entitlement.objects.filter(source_subscription=subscription, is_override=False).delete()
     if subscription.status not in (Subscription.Status.ACTIVE, Subscription.Status.TRIAL):
         return []
@@ -59,7 +60,7 @@ def sync_subscription_entitlements(subscription: Subscription):
         created.append(
             Entitlement.objects.create(
                 account=subscription.account,
-                product=subscription.product,
+                product_id=subscription.product_id or pl.feature.product_id,
                 feature=pl.feature,
                 limit=pl.limit_value,
                 period=pl.limit_period,
@@ -113,7 +114,7 @@ def effective_entitlement_for_account(account: Account, product: Product, featur
 
 def _has_current_subscription(account, product, now):
     return Subscription.objects.filter(
-        account=account, product=product, status__in=PLAN_STATUSES
+        covers_q(product), account=account, status__in=PLAN_STATUSES
     ).filter(Q(expires_at__isnull=True) | Q(expires_at__gt=now)).exists()
 
 

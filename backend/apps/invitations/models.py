@@ -107,6 +107,8 @@ class Notice(models.Model):
 
     class Kind(models.TextChoices):
         COVERED = "covered"
+        RECEIPT = "receipt"
+        EXPIRY_REMINDER = "expiry_reminder"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     kind = models.CharField(max_length=32, choices=Kind.choices)

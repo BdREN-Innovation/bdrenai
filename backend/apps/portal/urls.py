@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views
+from . import billing, views
 
 institution = "institutions/<slug:slug>/"
 
@@ -19,4 +19,9 @@ urlpatterns = [
     path(institution + "usage/", views.UsageView.as_view()),
     path(institution + "usage/export.csv", views.UsageExportView.as_view()),
     path(institution + "domains/", views.DomainsView.as_view()),
+    path(institution + "billing/", billing.BillingView.as_view()),
+    path(institution + "billing/checkout/", billing.CheckoutView.as_view()),
+    path(institution + "billing/downgrade/", billing.DowngradeView.as_view()),
+    path(institution + "billing/payments/<uuid:pk>/receipt/", billing.ReceiptView.as_view()),
+    path(institution + "billing/payments/<uuid:pk>/attachment/", billing.AttachmentView.as_view()),
 ]

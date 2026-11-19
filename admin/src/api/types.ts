@@ -593,3 +593,172 @@ export interface PackageListParams extends ListParams {
   app?: string;
   status?: PackageStatus;
 }
+
+/* Billing and subscriptions (docs/BILLING_API.md, "Superadmin API"). */
+
+export type PurchaseKind = 'new' | 'renew' | 'upgrade';
+export type PaymentKind = PurchaseKind | 'legacy';
+export type PaymentMethod = 'bkash' | 'bank_transfer' | 'cheque' | 'cash' | 'bkash_manual' | 'other';
+export type ManualMethod = Exclude<PaymentMethod, 'bkash'>;
+export type PaymentStatus =
+  | 'pending'
+  | 'completed'
+  | 'failed'
+  | 'cancelled'
+  | 'rejected'
+  | 'refunded'
+  | 'partially_refunded';
+export type RefundMethod = 'bkash' | 'manual';
+export type BkashMode = 'sandbox' | 'live' | 'off';
+export type PaymentTab = 'all' | 'bkash' | 'manual' | 'attention';
+export type SubscriptionStatus = 'active' | 'trial' | 'past_due' | 'cancelled' | 'expired';
+
+export interface PackageRef {
+  id: UUID;
+  name: string;
+  kind: PackageKind;
+}
+
+export interface Refund {
+  id: UUID;
+  amount: string;
+  reason: string;
+  method: RefundMethod;
+  bkash_refund_trx_id: string | null;
+  status: 'completed' | 'failed';
+  created_by: PersonRef | null;
+  created_at: ISODate;
+}
+
+export interface BkashDetails {
+  payment_id: string | null;
+  trx_id: string | null;
+  payer_account: string | null;
+  status: string | null;
+}
+
+export interface Payment {
+  id: UUID;
+  receipt_number: string | null;
+  institution: InstitutionRef | null;
+  account_id: UUID;
+  package: PackageRef | null;
+  package_version: number | null;
+  kind: PaymentKind;
+  method: PaymentMethod;
+  status: PaymentStatus;
+  amount: string;
+  currency: string;
+  periods: number;
+  period_start: ISODate | null;
+  period_end: ISODate | null;
+  reference: string;
+  payer_name: string;
+  payment_date: ISODate | null;
+  notes: string;
+  has_attachment: boolean;
+  bkash: BkashDetails | null;
+  failure_reason: string;
+  refunded_amount: string;
+  refunds: Refund[];
+  recorded_by: PersonRef | null;
+  verified_by: PersonRef | null;
+  verified_at: ISODate | null;
+  completed_at: ISODate | null;
+  created_at: ISODate;
+}
+
+export interface BillingTotals {
+  collected: string;
+  bkash: string;
+  manual: string;
+  refunds: string;
+  pending: number;
+  failed: number;
+}
+
+export interface BillingSummary extends BillingTotals {
+  previous: BillingTotals;
+  bkash_mode: BkashMode;
+}
+
+export interface DateRange {
+  from: string;
+  to: string;
+}
+
+export interface PaymentListParams extends ListParams, Partial<DateRange> {
+  status?: PaymentStatus;
+  method?: 'bkash' | 'manual';
+  institution?: string;
+  package?: UUID;
+  tab?: PaymentTab;
+}
+
+export interface QuoteParams {
+  institution: string;
+  package: UUID;
+  kind: PurchaseKind;
+  periods: number;
+}
+
+export interface Quote {
+  package_version: number;
+  amount: string;
+  currency: string;
+  periods: number;
+  period_start: ISODate;
+  period_end: ISODate;
+  kind: PurchaseKind;
+}
+
+export interface ManualPaymentBody {
+  institution: string;
+  package: UUID;
+  kind: PurchaseKind;
+  periods: number;
+  /** null takes the start from the quote. */
+  period_start: string | null;
+  amount: string;
+  method: ManualMethod;
+  reference: string;
+  payer_name: string;
+  payment_date: string;
+  notes: string;
+  pending: boolean;
+}
+
+export interface RefundBody {
+  amount: string;
+  reason: string;
+  end_subscription: boolean;
+}
+
+export interface BillingSubscription {
+  id: UUID;
+  institution: InstitutionRef | null;
+  package: PackageRef;
+  version: number;
+  apps: AppRef[];
+  status: SubscriptionStatus;
+  starts_at: ISODate;
+  expires_at: ISODate | null;
+  auto_renew: boolean;
+  scheduled_package: { id: UUID; name: string } | null;
+  last_payment: { id: UUID; method: PaymentMethod; completed_at: ISODate | null } | null;
+}
+
+export interface SubscriptionListParams extends ListParams {
+  status?: SubscriptionStatus;
+  institution?: string;
+  package?: UUID;
+  expiring_within?: number;
+  scheduled?: 1;
+  /** Not in the contract's list of filters yet; the Stopped renewal view sends it and also filters the page. */
+  auto_renew?: 'false';
+}
+
+export interface InstitutionBilling {
+  subscriptions: BillingSubscription[];
+  payments: Payment[];
+}
