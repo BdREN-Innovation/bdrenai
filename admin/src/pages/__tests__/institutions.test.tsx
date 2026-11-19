@@ -112,7 +112,9 @@ describe('InstitutionsPage', () => {
     await user.click((await screen.findAllByRole('button', { name: 'Create institution' }))[0]);
     const dialog = await screen.findByRole('dialog', { name: 'Create institution' });
     await user.type(within(dialog).getByRole('combobox', { name: /Institution name/ }), 'bue');
-    await user.click(await within(dialog).findByRole('option', { name: /Bangladesh University of Engineering/ }));
+    // The suggestions wait for the 250 ms typing pause plus the request; allow for a busy full-suite run.
+    const option = await within(dialog).findByRole('option', { name: /Bangladesh University of Engineering/ }, { timeout: 3000 });
+    await user.click(option);
     expect(within(dialog).getByRole('combobox', { name: /Institution name/ })).toHaveValue(buet.name);
     expect(within(dialog).getByLabelText(/Slug/)).toHaveValue('buet');
     expect(within(dialog).getByLabelText('Sector')).toHaveValue('public');

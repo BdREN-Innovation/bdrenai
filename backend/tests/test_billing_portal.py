@@ -297,3 +297,31 @@ def test_data_migration_maps_legacy_payments():
     # Legacy rows predate `applied`: a completed one with no linked subscription stays unknown, never "not applied".
     assert all(p.applied is None and p.target_subscription_id is None for p in rows.values())
     assert Package.objects.count() == 0
+
+
+@pytest.mark.django_db(transaction=True)
+def test_migration_moves_unpaid_targets_out_of_subscription(account, packages):
+    """Before billing 0008, checkout stored a renewal's target in `subscription`; unpaid rows keep it only as target."""
+    from tests.billing_support import subscribe
+
+    executor = MigrationExecutor(connection)
+    executor.migrate([("billing", "0007_applied")])
+    sub = subscribe(account, packages["basic"])
+    version = packages["basic"].versions.get()
+    common = {"account": account, "package_version": version, "amount": Decimal("1000.00"), "periods": 1}
+    pending = PaymentRecord.objects.create(kind="renew", method="bkash", status="pending", subscription=sub, **common)
+    cancelled = PaymentRecord.objects.create(kind="renew", method="bkash", status="cancelled", subscription=sub,
+                                             target_subscription=sub, **common)
+    paid = PaymentRecord.objects.create(kind="renew", method="bkash", status="completed", subscription=sub,
+                                        target_subscription=sub, applied=True, **common)
+    legacy = PaymentRecord.objects.create(kind="legacy", method="other", status="pending", subscription=sub, **common)
+
+    executor = MigrationExecutor(connection)
+    executor.loader.build_graph()
+    executor.migrate(executor.loader.graph.leaf_nodes())
+
+    rows = {p.pk: p for p in PaymentRecord.objects.all()}
+    assert (rows[pending.pk].subscription_id, rows[pending.pk].target_subscription_id) == (None, sub.pk)
+    assert (rows[cancelled.pk].subscription_id, rows[cancelled.pk].target_subscription_id) == (None, sub.pk)
+    assert (rows[paid.pk].subscription_id, rows[paid.pk].target_subscription_id) == (sub.pk, sub.pk)
+    assert rows[legacy.pk].subscription_id == sub.pk  # legacy manual payments keep their old meaning

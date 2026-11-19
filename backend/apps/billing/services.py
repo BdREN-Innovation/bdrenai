@@ -104,7 +104,7 @@ def load_payment(pk, *, account=None):
 def _lock(pk, *, account=None):
     qs = (
         PaymentRecord.objects.select_for_update(of=("self",))
-        .select_related("account", "package_version__package", "recorded_by", "subscription")
+        .select_related("account", "package_version__package", "recorded_by", "subscription", "target_subscription")
     )
     if account is None:
         return qs.get(pk=pk)
@@ -147,7 +147,7 @@ def _apply(payment, actor):
     subscription was extended meanwhile starts at its new end instead (same length)."""
     version = payment.package_version
     package = version.package
-    current = payment.subscription
+    current = payment.target_subscription
     if payment.kind == Kind.RENEW and current is not None and current.status in quotes.LIVE:
         if current.expires_at and current.expires_at > payment.period_start:
             length = payment.period_end - payment.period_start
@@ -183,7 +183,7 @@ def _paid_after(payment):
         .select_related("subscription__package_version__package")
         .prefetch_related(Prefetch("subscription__package_version__products", queryset=Product.objects.only("id")))
     )
-    own = payment.subscription_id if payment.kind == Kind.RENEW else None
+    own = payment.target_subscription_id if payment.kind == Kind.RENEW else None
     return any(
         other.subscription_id != own and apps & quotes.apps_of(other.subscription.package_version)
         for other in newer
@@ -232,7 +232,6 @@ def _close(payment, status, reason, *, actor=None, ip_address=None, source, bkas
 def _create(account, quote, *, method, recorded_by=None, **fields):
     return PaymentRecord.objects.create(
         account=account,
-        subscription=quote.subscription,
         target_subscription=quote.subscription,
         package_version=quote.package_version,
         kind=quote.kind,
@@ -554,7 +553,7 @@ def handle_callback(payment_id, outcome):
 def _locked_unless_busy(pk, status):
     return (
         PaymentRecord.objects.select_for_update(skip_locked=True, of=("self",))
-        .select_related("account", "package_version__package", "recorded_by", "subscription")
+        .select_related("account", "package_version__package", "recorded_by", "subscription", "target_subscription")
         .filter(pk=pk, status=status).first()
     )
 

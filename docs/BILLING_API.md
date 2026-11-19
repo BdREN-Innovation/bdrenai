@@ -384,7 +384,10 @@ Where the build is more specific than the sections above:
   `false` when the money was recorded without applying it (a bKash payment that settled after a newer purchase of
   the same apps — abandoned or reconciled late; BdREN refunds it; `notes` explains); `null` while pending/failed/
   cancelled/rejected, and for legacy rows from before this field.
-- `"subscription_id"`: the subscription the payment created or extended (`null` when not applied).
+- `"subscription_id"`: the subscription the payment created or extended — set only once it is completed and applied
+  (`null` while pending/failed/cancelled/rejected and when not applied). Migration `billing 0008_unpaid_subscription`
+  clears it on unpaid rows written before this rule, keeping their target in `target_subscription_id`; legacy manual
+  rows (`kind: legacy`) keep their old meaning.
 - `"target_subscription_id"`: the live subscription a `renew`/`upgrade` was bought for when the payment started,
   kept even when the payment is not applied (`null` for `new`). With `package` this says which package and
   subscription a payment renewed or replaced.

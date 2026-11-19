@@ -214,6 +214,10 @@ def test_callback_renewal_extends_from_the_period_end(fake_bkash, admin, account
     old_end = sub.expires_at
     fake_bkash.on("checkout/create", created()).on("checkout/execute", executed())
     assert checkout(signed_in(admin.user), packages["basic"], "renew").status_code == 201
+    pending = PaymentRecord.objects.get()
+    assert (pending.subscription_id, pending.target_subscription_id, pending.applied) == (None, sub.pk, None)
+    shown = billing_shapes.payment(billing.load_payment(pending.pk), portal=True)
+    assert (shown["subscription_id"], shown["target_subscription_id"]) == (None, str(sub.pk))
     callback(client)
     sub.refresh_from_db()
     payment = PaymentRecord.objects.get()
