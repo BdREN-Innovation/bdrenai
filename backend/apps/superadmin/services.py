@@ -239,6 +239,17 @@ def user_list(*, q="", status=None, institution=None, role=None):
     return qs.order_by("-created_at", "pk")
 
 
+def audit_filter_options():
+    """The actions and target types that occur in the log, for the audit page's fixed filters."""
+    actions = AuditLog.objects.order_by("action").values_list("action", flat=True).distinct()
+    target_types = AuditLog.objects.order_by("target_type").values_list("target_type", flat=True).distinct()
+    return {
+        "actions": list(actions),
+        "target_types": list(target_types),
+        "roles": [{"value": value, "label": label} for value, label in AuditLog.ActorRole.choices],
+    }
+
+
 def load_user(user_id):
     user = users().prefetch_related("external_identities").filter(pk=user_id).first()
     if user is None:
@@ -429,7 +440,8 @@ def dashboard():
     }
 
 
-def audit_entries(*, q="", action=None, actor=None, target_type=None, target_id=None, since=None, until=None):
+def audit_entries(*, q="", action=None, actor=None, role=None, target_type=None, target_id=None, since=None,
+                  until=None):
     qs = AuditLog.objects.select_related("actor")
     if q:
         qs = qs.filter(
@@ -440,6 +452,8 @@ def audit_entries(*, q="", action=None, actor=None, target_type=None, target_id=
         qs = qs.filter(action=action)
     if actor:
         qs = qs.filter(actor_id=actor)
+    if role:
+        qs = qs.filter(actor_role=role)
     if target_type:
         qs = qs.filter(target_type=target_type)
     if target_id:

@@ -1,50 +1,43 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
-import type { AuditListParams } from '@/api/types';
-import { Button, ErrorState, Field, Input, Pagination, SearchInput } from '@/components/ui';
-import { useDebouncedValue } from '@/lib/hooks';
+import type { AuditListParams, AuditRole } from '@/api/types';
+import { Button, ErrorState, Field, Input, Pagination, SearchInput, Select } from '@/components/ui';
+import { AuditTable, actionLabel } from '@/features/audit';
+import { useAudit, useAuditFilters } from '@/api/queries';
 import { Page } from '@/components/layout/Page';
-import { AuditTable } from '@/features/audit';
-import { formatNumber } from '@/lib/format';
-import { useAudit } from '@/api/queries';
+import { formatNumber, humanize } from '@/lib/format';
 
 const PAGE_SIZE = 50;
 
 interface Filters {
   action: string;
   target_type: string;
-  target_id: string;
-  actor: string;
+  role: AuditRole | '';
   from: string;
   to: string;
 }
 
-const NO_FILTERS: Filters = { action: '', target_type: '', target_id: '', actor: '', from: '', to: '' };
-
-const FILTER_FIELDS: { key: keyof Filters; label: string; type?: string; placeholder?: string }[] = [
-  { key: 'action', label: 'Action', placeholder: 'e.g. institution.suspend' },
-  { key: 'target_type', label: 'Target type', placeholder: 'e.g. organization' },
-  { key: 'target_id', label: 'Target ID' },
-  { key: 'actor', label: 'Actor user ID' },
-  { key: 'from', label: 'From', type: 'date' },
-  { key: 'to', label: 'To', type: 'date' },
-];
+const NO_FILTERS: Filters = { action: '', target_type: '', role: '', from: '', to: '' };
 
 export function AuditPage() {
   const [q, setQ] = useState('');
   const [filters, setFilters] = useState<Filters>(NO_FILTERS);
   const [page, setPage] = useState(1);
-  const debounced = useDebouncedValue(filters, 300);
+  const options = useAuditFilters();
   const params: AuditListParams = {
     q,
     page,
     page_size: PAGE_SIZE,
-    ...Object.fromEntries(Object.entries(debounced).map(([key, value]) => [key, value.trim() || undefined])),
+    action: filters.action || undefined,
+    target_type: filters.target_type || undefined,
+    role: filters.role || undefined,
+    from: filters.from || undefined,
+    to: filters.to || undefined,
   };
   const audit = useAudit(params);
   const active = Object.values(filters).some(Boolean) || q !== '';
 
-  const set = (key: keyof Filters, value: string) => {
+  const set = <K extends keyof Filters>(key: K, value: Filters[K]) => {
     setFilters((current) => ({ ...current, [key]: value }));
     setPage(1);
   };
@@ -61,21 +54,49 @@ export function AuditPage() {
             </Button>
           ) : null}
         </div>
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
-          {FILTER_FIELDS.map((field) => (
-            <Field key={field.key} label={field.label}>
-              {(props) => (
-                <Input
-                  {...props}
-                  type={field.type ?? 'text'}
-                  placeholder={field.placeholder}
-                  value={filters[field.key]}
-                  spellCheck={false}
-                  onChange={(event) => set(field.key, event.target.value)}
-                />
-              )}
-            </Field>
-          ))}
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-5">
+          <Field label="Action">
+            {(props) => (
+              <Select {...props} value={filters.action} onChange={(event) => set('action', event.target.value)}>
+                <option value="">All actions</option>
+                {(options.data?.actions ?? []).map((action) => (
+                  <option key={action} value={action}>
+                    {actionLabel(action)}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </Field>
+          <Field label="Target type">
+            {(props) => (
+              <Select {...props} value={filters.target_type} onChange={(event) => set('target_type', event.target.value)}>
+                <option value="">All targets</option>
+                {(options.data?.target_types ?? []).map((type) => (
+                  <option key={type} value={type}>
+                    {humanize(type)}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </Field>
+          <Field label="Role">
+            {(props) => (
+              <Select {...props} value={filters.role} onChange={(event) => set('role', event.target.value as AuditRole | '')}>
+                <option value="">All roles</option>
+                {(options.data?.roles ?? []).map((role) => (
+                  <option key={role.value} value={role.value}>
+                    {role.label}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </Field>
+          <Field label="From">
+            {(props) => <Input {...props} type="date" value={filters.from} onChange={(event) => set('from', event.target.value)} />}
+          </Field>
+          <Field label="To">
+            {(props) => <Input {...props} type="date" value={filters.to} onChange={(event) => set('to', event.target.value)} />}
+          </Field>
         </div>
       </div>
       {audit.isError ? <ErrorState error={audit.error} onRetry={() => void audit.refetch()} /> : null}

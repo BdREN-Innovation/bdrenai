@@ -147,6 +147,7 @@ def audit_entry(entry):
         "target_type": entry.target_type,
         "target_id": entry.target_id,
         "actor": person(entry.actor),
+        "actor_role": entry.actor_role,
         "metadata": entry.metadata,
         "ip_address": entry.ip_address,
         "created_at": iso(entry.created_at),

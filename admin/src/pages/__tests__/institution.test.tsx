@@ -265,7 +265,7 @@ describe('InstitutionDetailPage', () => {
       [DETAIL]: institutionDetail,
       [`GET ${API}/institutions/dhaka-university/history/`]: page([auditEntry]),
     });
-    await user.click(await screen.findByRole('row', { name: /Organization suspend by Boss Admin/ }));
+    await user.click(await screen.findByRole('row', { name: /Organization suspend by Superadmin/ }));
     const drawer = await screen.findByRole('dialog', { name: 'Organization suspend' });
     expect(within(drawer).getByText(/"reason": "Unpaid invoice"/)).toBeInTheDocument();
     expect(within(drawer).getByText('10.0.0.5')).toBeInTheDocument();

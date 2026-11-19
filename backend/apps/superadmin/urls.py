@@ -27,6 +27,7 @@ urlpatterns = [
     path("admins/", views.AdminsView.as_view()),
     path("admins/<uuid:user_id>/", views.AdminView.as_view()),
     path("audit/", views.AuditView.as_view()),
+    path("audit/filters/", views.AuditFiltersView.as_view()),
     path("config/apps/", views.ConfigAppsView.as_view()),
     path("config/apps/<slug:slug>/", views.ConfigAppView.as_view()),
     path("config/apps/<slug:slug>/features/", views.ConfigAppFeaturesView.as_view()),

@@ -69,12 +69,16 @@ export interface Session {
   roles: string[];
 }
 
+/** The role the actor acted in, fixed when the entry was written. */
+export type AuditRole = 'superadmin' | 'institution_admin' | 'user' | 'system';
+
 export interface AuditEntry {
   id: UUID;
   action: string;
   target_type: string;
   target_id: string;
   actor: PersonRef | null;
+  actor_role: AuditRole;
   metadata: Record<string, unknown>;
   ip_address: string | null;
   created_at: ISODate;
@@ -397,8 +401,16 @@ export interface InvitationListParams extends ListParams {
   institution?: string;
 }
 
+/** GET audit/filters/: the values the audit page's dropdowns offer. */
+export interface AuditFilterOptions {
+  actions: string[];
+  target_types: string[];
+  roles: { value: AuditRole; label: string }[];
+}
+
 export interface AuditListParams extends ListParams {
   action?: string;
+  role?: AuditRole;
   actor?: UUID;
   target_type?: string;
   target_id?: string;

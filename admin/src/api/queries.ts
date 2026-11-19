@@ -19,6 +19,7 @@ export const keys = {
   invitations: (params: t.InvitationListParams) => ['invitations', params] as const,
   admins: ['admins'] as const,
   audit: (params: t.AuditListParams) => ['audit', params] as const,
+  auditFilters: ['audit', 'filters'] as const,
   configApps: ['config', 'apps'] as const,
   packages: (params: t.PackageListParams) => ['config', 'packages', params] as const,
   package: (id: string) => ['config', 'package', id] as const,
@@ -161,6 +162,14 @@ export function useAudit(params: t.AuditListParams) {
     queryKey: keys.audit(params),
     queryFn: ({ signal }) => superadmin.get<t.Page<t.AuditEntry>>('audit/', { ...params }, signal),
     placeholderData: keepPreviousData,
+  });
+}
+
+export function useAuditFilters() {
+  return useQuery({
+    queryKey: keys.auditFilters,
+    queryFn: ({ signal }) => superadmin.get<t.AuditFilterOptions>('audit/filters/', undefined, signal),
+    staleTime: 60_000,
   });
 }
 
