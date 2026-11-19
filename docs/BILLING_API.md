@@ -232,8 +232,8 @@ callback, receipts) are built against the Portal API above; see "Institution con
 - **Billing** (`/portal/$slug/billing`, sidebar group Institution, shown to the institution's `owner`/`admin` roles,
   the only roles the portal billing API lets in). Code: `admin/src/pages/portal/billing.tsx`,
   `admin/src/features/portal/billing/` (`rules.ts`, `errors.ts`, `banner.tsx`, `packages.tsx`, `offers.tsx`,
-  `payments.tsx`, `summary.tsx`), hooks `usePortalBilling` / `useCheckout` / `useScheduleDowngrade` /
-  `useCancelDowngrade` in `features/portal/queries.ts`.
+  `payments.tsx`, `abandon.tsx`, `summary.tsx`), hooks `usePortalBilling` / `useCheckout` / `useAbandonPayment` /
+  `useScheduleDowngrade` / `useCancelDowngrade` in `features/portal/queries.ts`.
   - Search params `payment` and `result` (`success|failed|cancelled|pending`, anything else is dropped). The page
     keeps them in state for the result banner and replaces the URL without them at once, so a reload shows no banner.
     The banner's outcome comes from the named payment's own `status` in `GET billing/`, never from `result` (which
@@ -262,14 +262,37 @@ callback, receipts) are built against the Portal API above; see "Institution con
     returns `sandbox.payment.bkash.com` / `payment.bkash.com`), without credentials in the URL. Any other address is
     not followed and the admin is told to contact BdREN. Checkout quotes again on the server, so when the created
     payment's amount, currency, periods or period days differ from the confirmed quote, the dialog shows the new
-    charge and needs a second "Continue to bKash" (no second POST).
-    Every error code in the tables below has its own message; `checkout_in_progress` names the started payment and
-    offers "See the pending payment" (focuses its row in the history), `seats_exceed_package` shows used/cap.
+    charge and needs a second "Continue to bKash" (no second POST). A 201 with `redirect_url: null` (the payment was
+    abandoned while checkout was creating it, so it comes back `cancelled`) is a failed start: "The payment didn't
+    start … nothing was charged. Try again.", nothing is opened, billing is re-read and the pay button works again.
+    Every error code in the tables below has its own message; `checkout_in_progress` names the started payment, says
+    it is confirmed within a few minutes if it was paid, otherwise to abandon it or wait 10 minutes (its
+    `redirect_url` is always null and never followed: bKash checkout pages are single-use), and offers **Abandon this
+    payment** (below) and "See the pending payment" (focuses its row in the history). `seats_exceed_package` shows
+    used/cap.
+  - **Abandon this payment** (`abandon.tsx`), for the roles that may pay (`owner`/`admin`; `canPay` in `rules.ts`): on
+    the `checkout_in_progress` notice and on each `pending` bKash row of Payments. A confirmation explains that bKash
+    is asked first: if bKash already received the money the payment is recorded as paid with a receipt; otherwise it
+    is cancelled, nothing is charged and a new payment can start at once. Then `POST billing/payments/<id>/abandon/`
+    once (repeat clicks and Enter are ignored while it runs; the dialog can't be closed until bKash answers), and
+    `GET billing/` is re-read whatever the answer. The answer stays in the dialog's live region:
+    `completed` → "bKash had already received this payment, so it is recorded as paid, receipt <number>" with View
+    receipt (never called abandoned); `cancelled` → "Payment cancelled; you can pay again now"; `failed` → "Payment
+    failed: <failure_reason>". Errors: `payment_confirming` → "bKash approved this payment and we're confirming it;
+    this can take a few minutes", the payment stays pending and **Check again** asks again; `bkash_error` → nothing
+    changed, **Try again**; `not_pending` → it has already settled, Payments shows the result (no retry); anything
+    else → the server's message with **Try again**. Opened from checkout, a `cancelled`/`failed`/`not_pending` answer
+    turns the checkout dialog's pay button back on ("Pay again now" in the abandon dialog starts checkout again from
+    the same dialog), and a `completed` answer shows the earlier payment as paid and removes the pay button.
   - `bkash_enabled: false`: no Pay buttons; a notice "Paying by bKash isn't available right now. Contact BdREN to pay
     (noc@bdren.edu.bd) by bank transfer, cheque or another way" with a prefilled email.
-  - **Payments**: date, package and kind, amount (and refunded amount), method, status (with `failure_reason` for
-    failed/cancelled/rejected), bKash trxID or reference, Receipt (`billing/payments/<id>/receipt/`, completed or
-    refunded payments with a receipt number) and Attachment (`billing/payments/<id>/attachment/`).
+  - **Payments**: date, package and kind (and the payment's `notes`, as "Note: …"), amount (and refunded amount),
+    method, status (with `failure_reason` for failed/cancelled/rejected, and **Abandon this payment** on a pending
+    bKash payment), bKash trxID or reference, Receipt (`billing/payments/<id>/receipt/`, completed or refunded
+    payments with a receipt number) and Attachment (`billing/payments/<id>/attachment/`). A paid payment whose
+    `notes` carry the backend's not-applied note (settled after a newer purchase of the same apps; no subscription
+    changed, BdREN refunds it) is labelled "Not applied to a package". The `Payment` shape has no `subscription`, so
+    the console reads that note; a `subscription_id` in the shape would be the sturdier signal.
 - **Dashboard** Packages panel reads `GET billing/`: live packages with "Renew by <last day> (N days left)" (red from
   14 days before the end), scheduled switch and stopped renewal, a **Renew** link to Billing when a package with a renew
   offer ends within 14 days, and **Choose a package** when nothing is active.

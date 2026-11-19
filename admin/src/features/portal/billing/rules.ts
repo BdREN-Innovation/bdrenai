@@ -5,6 +5,15 @@ import { addDays, dayOf, formatDay } from '@/features/billing/labels';
 /** Who may open Billing: the backend's portal billing views allow the institution's owners and admins. */
 export const BILLING_ROLES: ReadonlySet<Role> = new Set<Role>(['owner', 'admin']);
 
+/** Whether a role in the institution may pay for packages and give up a pending bKash payment. */
+export const canPay = (role: Role | undefined): boolean => role !== undefined && BILLING_ROLES.has(role);
+
+/** A payment closed here can still be paid on a bKash page the payer already has open; the backend then records it. */
+export const LATE_PAY = 'If it is still paid on bKash later, the payment is recorded and BdREN refunds it.';
+
+/** A failed payment may still have taken money (bKash taking a different amount fails it). */
+export const TAKEN = 'If bKash took money for it, BdREN refunds it.';
+
 export const LIVE_STATUSES: ReadonlySet<BillingSubscription['status']> = new Set<BillingSubscription['status']>(['active', 'trial', 'past_due']);
 
 export const RECEIPT_STATUSES: ReadonlySet<PaymentStatus> = new Set<PaymentStatus>(['completed', 'partially_refunded', 'refunded']);
@@ -136,6 +145,15 @@ export function timing(offer: Offer, current: string | undefined, now: number = 
   }
   return `The period starts when the payment completes: ${ifToday}.`;
 }
+
+/** A bKash payment still waiting for bKash, which the institution may abandon (docs/BILLING_API.md, bKash flow step 5). */
+export const isAbandonable = (payment: PortalPayment): boolean => payment.status === 'pending' && payment.method === 'bkash';
+
+/**
+ * What the backend appends to `notes` (`NOT_APPLIED_NOTE` in apps/billing/services.py) when a bKash payment settles
+ * after a newer purchase of the same apps: recorded as paid, but no subscription changed, and BdREN refunds it.
+ */
+export const isUnapplied = (payment: PortalPayment): boolean => RECEIPT_STATUSES.has(payment.status) && payment.applied === false;
 
 export const paymentAnchor = (id: string) => `payment-${id}`;
 

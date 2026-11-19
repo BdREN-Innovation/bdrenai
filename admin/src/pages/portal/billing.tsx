@@ -80,7 +80,7 @@ export function PortalBillingPage() {
             bkashEnabled={billing.data.bkash_enabled}
             onShowPayment={showPayment}
           />
-          <PaymentHistory slug={slug} payments={billing.data.payments} />
+          <PaymentHistory slug={slug} payments={billing.data.payments} onShowPayment={showPayment} />
         </>
       ) : null}
     </Page>

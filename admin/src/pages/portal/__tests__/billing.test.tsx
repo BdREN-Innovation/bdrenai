@@ -21,7 +21,7 @@ import {
   standardSubscription,
   toasts,
 } from '@/test/portal';
-import { POLL_DELAYS, browser } from '@/features/portal/billing/rules';
+import { LATE_PAY, POLL_DELAYS, browser } from '@/features/portal/billing/rules';
 import { PORTAL } from '@/test/fixtures';
 import { reply } from '@/test/api';
 
@@ -390,55 +390,359 @@ describe('Checkout', () => {
     await waitFor(() => expect(api.find('POST', CHECKOUT)).toHaveLength(2));
   });
 
-  it('points to the bKash payment already in progress', async () => {
-    vi.spyOn(browser, 'open').mockImplementation(() => undefined);
+  it('points to the bKash payment already in progress and offers to abandon it, not to continue it', async () => {
+    const open = vi.spyOn(browser, 'open').mockImplementation(() => undefined);
     renderBilling('/portal/du/billing', {
       [`GET ${BILLING}`]: withPayments(pendingPayment),
-      [`POST ${CHECKOUT}`]: reply(409, { error: 'checkout_in_progress', message: 'Server text', payment: pendingPayment }),
+      [`POST ${CHECKOUT}`]: reply(409, { error: 'checkout_in_progress', message: 'Server text', payment: pendingPayment, redirect_url: null }),
     });
     const { user, dialog } = await openRenewCheckout();
     await user.click(within(dialog).getByRole('button', { name: 'Continue to bKash' }));
-    expect(await within(dialog).findByRole('alert')).toHaveTextContent(/A bKash payment of ৳4,500 for BdREN AI Suite was started at 19 Nov 2026/);
+    const alert = await within(dialog).findByRole('alert');
+    expect(alert).toHaveTextContent(/A bKash payment of ৳4,500 for BdREN AI Suite was started at 19 Nov 2026/);
+    expect(alert).toHaveTextContent('Otherwise abandon it to pay again now, or wait 10 minutes and start a new payment.');
+    expect(alert).not.toHaveTextContent('Continue it on bKash');
+    expect(within(dialog).queryByRole('button', { name: 'Continue to bKash' })).not.toBeInTheDocument();
+    expect(within(alert).getByRole('button', { name: 'Abandon this payment' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Not now' })).toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'See the pending payment' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     await waitFor(() => expect(document.getElementById('payment-pay-pending')).toHaveFocus());
+    expect(open).not.toHaveBeenCalled();
   });
 
-  it('continues the payment already in progress on bKash when the API returns its page', async () => {
+  it('treats a created payment without a bKash page as a failed start, and lets the admin try again', async () => {
     const open = vi.spyOn(browser, 'open').mockImplementation(() => undefined);
-    const page = 'https://sandbox.payment.bkash.com/?paymentId=TR0011pending';
-    const { api } = renderBilling('/portal/du/billing', {
-      [`GET ${BILLING}`]: withPayments(pendingPayment),
-      [`POST ${CHECKOUT}`]: reply(409, { error: 'checkout_in_progress', payment: pendingPayment, redirect_url: page }),
-    });
+    const raced = { ...renewCheckoutPayment, status: 'cancelled' as const, failure_reason: 'Abandoned by the institution admin' };
+    const { api } = renderBilling('/portal/du/billing', { [`POST ${CHECKOUT}`]: reply(201, { payment: raced, redirect_url: null }) });
     const { user, dialog } = await openRenewCheckout();
+    const reads = api.find('GET', BILLING).length;
+    await user.click(within(dialog).getByRole('button', { name: 'Continue to bKash' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent("The payment didn't start: it was stopped before bKash's page opened, so nothing was charged.");
+    expect(open).not.toHaveBeenCalled();
+    await waitFor(() => expect(api.find('GET', BILLING).length).toBeGreaterThan(reads));
+    const again = within(dialog).getByRole('button', { name: 'Continue to bKash' });
+    expect(again).toBeEnabled();
+    await user.click(again);
+    await waitFor(() => expect(api.find('POST', CHECKOUT)).toHaveLength(2));
+    expect(open).not.toHaveBeenCalled();
+  });
+});
+
+const abandonPath = (id: string) => `${DU}/billing/payments/${id}/abandon/`;
+const ABANDON = abandonPath(pendingPayment.id);
+const ABANDON_ROW = 'Abandon this payment: ৳4,500 by bKash, started 19 Nov 2026';
+const receivedPayment: PortalPayment = { ...pendingPayment, status: 'completed', receipt_number: 'BDR-2026-000040', reference: 'DKJ80PXGQS' };
+const abandonedPayment: PortalPayment = { ...pendingPayment, status: 'cancelled', failure_reason: 'Abandoned by the institution admin' };
+
+/** Billing with the pending payment until the abandon request has been answered, then with `after`. */
+function billingAround(after: PortalPayment) {
+  let answered = false;
+  return {
+    read: () => withPayments(answered ? after : pendingPayment),
+    answer: (body: unknown) => () => {
+      answered = true;
+      return body;
+    },
+  };
+}
+
+/** The abandon dialog's always-mounted live region, where its answers are read out. */
+const liveRegion = (dialog: HTMLElement) => dialog.querySelector('[aria-live="polite"][aria-atomic="true"]') as HTMLElement;
+
+async function openRowAbandon() {
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole('button', { name: ABANDON_ROW }));
+  const dialog = await screen.findByRole('dialog', { name: 'Abandon this payment?' });
+  return { user, dialog };
+}
+
+describe('Abandoning a pending bKash payment', () => {
+  it('is offered on pending bKash payments only, and explains that bKash is asked first', async () => {
+    const bankPending: PortalPayment = { ...bankPayment, id: 'pay-bank-pending', status: 'pending', receipt_number: null };
+    renderBilling('/portal/du/billing', { [`GET ${BILLING}`]: withPayments(pendingPayment, bankPending) });
+    const table = await screen.findByRole('table', { name: 'Payments' });
+    expect(within(table).getAllByRole('button', { name: /^Abandon this payment/ })).toHaveLength(1);
+    const row = document.getElementById('payment-pay-pending') as HTMLElement;
+    expect(within(row).getByRole('button', { name: ABANDON_ROW })).toHaveTextContent('Abandon this payment');
+    const { dialog } = await openRowAbandon();
+    expect(dialog).toHaveTextContent('The bKash payment of ৳4,500 for BdREN AI Suite, started at 19 Nov 2026');
+    expect(dialog).toHaveTextContent('We first ask bKash about this payment.');
+    expect(dialog).toHaveTextContent('If bKash already received the money, the payment is recorded as paid and you get a receipt.');
+    expect(dialog).toHaveTextContent('Otherwise the payment is cancelled and you can pay again right away.');
+    expect(dialog).toHaveTextContent('If it is still paid on bKash later, the payment is recorded and BdREN refunds it.');
+    expect(dialog).not.toHaveTextContent(/nothing (is|was) charged/i);
+    await userEvent.setup().click(within(dialog).getByRole('button', { name: 'Keep the payment' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  });
+
+  it("isn't offered to a role that can't pay", async () => {
+    vi.spyOn(browser, 'open').mockImplementation(() => undefined);
+    const user = userEvent.setup();
+    renderBilling('/portal/du/billing', {
+      [`GET ${PORTAL}/`]: [{ ...adminInstitution, role: 'member' }],
+      [`GET ${BILLING}`]: withPayments(pendingPayment),
+      [`POST ${CHECKOUT}`]: reply(409, { error: 'checkout_in_progress', payment: pendingPayment, redirect_url: null }),
+    });
+    const table = await screen.findByRole('table', { name: 'Payments' });
+    expect(within(table).getByText('Pending')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Abandon this payment/ })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Pay with bKash: Renewal of Synapse Standard, ৳3,000' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Pay ৳3,000 with bKash' });
     await user.click(within(dialog).getByRole('button', { name: 'Continue to bKash' }));
     const alert = await within(dialog).findByRole('alert');
-    expect(alert).toHaveTextContent('Continue it on bKash');
-    expect(within(dialog).getAllByRole('button', { name: 'Continue to bKash' })).toHaveLength(1);
-    expect(within(dialog).getByRole('button', { name: 'Not now' })).toBeInTheDocument();
-    await user.click(within(alert).getByRole('button', { name: 'Continue to bKash' }));
-    expect(open).toHaveBeenCalledWith(page);
-    expect(api.find('POST', CHECKOUT)).toHaveLength(1);
+    expect(within(alert).getByRole('button', { name: 'See the pending payment' })).toBeInTheDocument();
+    expect(within(alert).queryByRole('button', { name: 'Abandon this payment' })).not.toBeInTheDocument();
+  });
+
+  it('records a payment bKash had already received as paid, with its receipt, never as abandoned', async () => {
+    const state = billingAround(receivedPayment);
+    const { api } = renderBilling('/portal/du/billing', {
+      [`GET ${BILLING}`]: state.read,
+      [`POST ${ABANDON}`]: state.answer({ payment: receivedPayment, result: 'completed' }),
+    });
+    const { user, dialog } = await openRowAbandon();
+    const reads = api.find('GET', BILLING).length;
+    await user.click(within(dialog).getByRole('button', { name: 'Abandon payment' }));
+    await waitFor(() => expect(dialog).toHaveTextContent('bKash had already received this payment, so it is recorded as paid, receipt BDR-2026-000040.'));
+    expect(screen.getByRole('dialog', { name: 'Payment received' })).toBe(dialog);
+    expect(within(dialog).getByRole('link', { name: /View receipt/ })).toHaveAttribute('href', `${DU}/billing/payments/pay-pending/receipt/`);
+    expect(dialog).not.toHaveTextContent(/abandon/i);
+    expect(api.find('POST', ABANDON)).toHaveLength(1);
+    expect(api.find('POST', ABANDON)[0].body).toEqual({});
+    await waitFor(() => expect(api.find('GET', BILLING).length).toBeGreaterThan(reads));
+    await user.click(within(dialog).getByRole('button', { name: 'Done' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    const row = document.getElementById('payment-pay-pending') as HTMLElement;
+    await waitFor(() => expect(within(row).getByText('Completed')).toBeInTheDocument());
+    expect(within(row).getByRole('link', { name: /Receipt BDR-2026-000040/ })).toBeInTheDocument();
+    expect(within(row).queryByRole('button', { name: /Abandon/ })).not.toBeInTheDocument();
+    await waitFor(() => expect(row).toHaveFocus());
+  });
+
+  it('cancels a payment the payer has not approved, so a new one can start now', async () => {
+    const state = billingAround(abandonedPayment);
+    const { api } = renderBilling('/portal/du/billing', {
+      [`GET ${BILLING}`]: state.read,
+      [`POST ${ABANDON}`]: state.answer({ payment: abandonedPayment, result: 'cancelled' }),
+    });
+    const { user, dialog } = await openRowAbandon();
+    const reads = api.find('GET', BILLING).length;
+    await user.click(within(dialog).getByRole('button', { name: 'Abandon payment' }));
+    await waitFor(() => expect(dialog).toHaveTextContent('Payment cancelled; you can pay again now.'));
+    expect(dialog).toHaveTextContent(LATE_PAY);
+    expect(dialog).not.toHaveTextContent(/nothing (is|was) charged/i);
+    expect(within(dialog).queryByRole('button', { name: 'Pay again now' })).not.toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Done' })).toHaveFocus();
+    await waitFor(() => expect(api.find('GET', BILLING).length).toBeGreaterThan(reads));
+    await user.click(within(dialog).getByRole('button', { name: 'Done' }));
+    const row = document.getElementById('payment-pay-pending') as HTMLElement;
+    await waitFor(() => expect(within(row).getByText('Cancelled')).toBeInTheDocument());
+    expect(row).toHaveTextContent('Abandoned by the institution admin');
+  });
+
+  it('shows why a payment bKash closed as failed', async () => {
+    const failed: PortalPayment = { ...pendingPayment, status: 'failed', failure_reason: 'bKash: Paid a different amount; BdREN refunds it.' };
+    const state = billingAround(failed);
+    renderBilling('/portal/du/billing', { [`GET ${BILLING}`]: state.read, [`POST ${ABANDON}`]: state.answer({ payment: failed, result: 'failed' }) });
+    const { user, dialog } = await openRowAbandon();
+    await user.click(within(dialog).getByRole('button', { name: 'Abandon payment' }));
+    await waitFor(() => expect(dialog).toHaveTextContent('Payment failed: bKash: Paid a different amount; BdREN refunds it. You can pay again now.'));
+    expect(dialog).toHaveTextContent('If bKash took money for it, BdREN refunds it.');
+    expect(screen.getByRole('dialog', { name: 'Payment failed' })).toBe(dialog);
   });
 
   it.each([
-    ['no page', null],
-    ['an http page', 'http://sandbox.payment.bkash.com/?paymentId=x'],
-    ['another host', 'https://bkash.com.evil.example/pay'],
-  ])('offers no resume button when the API returns %s', async (_label, redirect) => {
-    const open = vi.spyOn(browser, 'open').mockImplementation(() => undefined);
-    renderBilling('/portal/du/billing', {
+    [
+      409,
+      'payment_confirming',
+      "bKash approved this payment and we're confirming it; this can take a few minutes. It stays pending",
+      'Check again',
+    ],
+    [502, 'bkash_error', "bKash didn't answer, so nothing changed and the payment is still pending.", 'Try again'],
+    [418, 'something_new', 'The server said something new.', 'Try again'],
+  ])('explains %s %s, keeps the payment pending and can ask again', async (status, code, text, retry) => {
+    const { api } = renderBilling('/portal/du/billing', {
       [`GET ${BILLING}`]: withPayments(pendingPayment),
-      [`POST ${CHECKOUT}`]: reply(409, { error: 'checkout_in_progress', payment: pendingPayment, redirect_url: redirect }),
+      [`POST ${ABANDON}`]: reply(status, { error: code, message: code === 'something_new' ? 'The server said something new.' : 'Server text' }),
     });
+    const { user, dialog } = await openRowAbandon();
+    const reads = api.find('GET', BILLING).length;
+    await user.click(within(dialog).getByRole('button', { name: 'Abandon payment' }));
+    await waitFor(() => expect(dialog).toHaveTextContent(text));
+    if (code === 'payment_confirming') expect(liveRegion(dialog)).toHaveTextContent(text);
+    else expect(within(dialog).getByRole('alert')).toHaveTextContent(text);
+    await waitFor(() => expect(api.find('GET', BILLING).length).toBeGreaterThan(reads));
+    expect(dialog).not.toHaveTextContent('Payment cancelled');
+    await user.click(within(dialog).getByRole('button', { name: retry }));
+    await waitFor(() => expect(api.find('POST', ABANDON)).toHaveLength(2));
+    await user.click(within(dialog).getByRole('button', { name: 'Keep the payment' }));
+    const row = document.getElementById('payment-pay-pending') as HTMLElement;
+    expect(within(row).getByText('Pending')).toBeInTheDocument();
+    expect(within(row).getByRole('button', { name: ABANDON_ROW })).toBeInTheDocument();
+  });
+
+  it.each([
+    [409, 'payment_confirming', 'Check again'],
+    [502, 'bkash_error', 'Try again'],
+  ])('moves focus to the retry button after %s %s, although the busy confirm button lost it', async (status, code, retry) => {
+    let answer: (value: unknown) => void = () => undefined;
+    const held = new Promise((resolve) => {
+      answer = resolve;
+    });
+    renderBilling('/portal/du/billing', { [`GET ${BILLING}`]: withPayments(pendingPayment), [`POST ${ABANDON}`]: () => held });
+    const { user, dialog } = await openRowAbandon();
+    await user.click(within(dialog).getByRole('button', { name: 'Abandon payment' }));
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Asking bKash…' })).toBeDisabled());
+    act(() => {
+      dialog.focus();
+      dialog.blur();
+    });
+    expect(document.body).toHaveFocus();
+    await act(async () => answer(reply(status, { error: code, message: 'Server text' })));
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: retry })).toHaveFocus());
+  });
+
+  it('refreshes billing when the payment has already settled', async () => {
+    const state = billingAround(receivedPayment);
+    const { api } = renderBilling('/portal/du/billing', {
+      [`GET ${BILLING}`]: state.read,
+      [`POST ${ABANDON}`]: state.answer(reply(409, { error: 'not_pending', message: 'Only a pending bKash payment can be abandoned.' })),
+    });
+    const { user, dialog } = await openRowAbandon();
+    const reads = api.find('GET', BILLING).length;
+    await user.click(within(dialog).getByRole('button', { name: 'Abandon payment' }));
+    await waitFor(() => expect(dialog).toHaveTextContent('This payment is no longer pending: it has already settled. Payments now shows its result.'));
+    expect(liveRegion(dialog)).toHaveTextContent('This payment is no longer pending: it has already settled.');
+    expect(within(dialog).getByRole('button', { name: 'Done' })).toHaveFocus();
+    await waitFor(() => expect(api.find('GET', BILLING).length).toBeGreaterThan(reads));
+    expect(within(dialog).queryByRole('button', { name: /Abandon payment|Try again/ })).not.toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Done' }));
+    const row = document.getElementById('payment-pay-pending') as HTMLElement;
+    await waitFor(() => expect(within(row).getByText('Completed')).toBeInTheDocument());
+  });
+
+  it('asks bKash once however often it is confirmed, and stays open until it answers', async () => {
+    let answer: (value: unknown) => void = () => undefined;
+    const held = new Promise((resolve) => {
+      answer = resolve;
+    });
+    const { api } = renderBilling('/portal/du/billing', { [`GET ${BILLING}`]: withPayments(pendingPayment), [`POST ${ABANDON}`]: () => held });
+    const { user, dialog } = await openRowAbandon();
+    const confirm = within(dialog).getByRole('button', { name: 'Abandon payment' });
+    fireEvent.click(confirm);
+    fireEvent.click(confirm);
+    fireEvent.submit(confirm.closest('form') as HTMLFormElement);
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Asking bKash…' })).toBeDisabled());
+    expect(within(dialog).getByRole('button', { name: 'Keep the payment' })).toBeDisabled();
+    expect(within(dialog).getByRole('button', { name: 'Close' })).toBeDisabled();
+    await user.keyboard('{Escape}');
+    expect(screen.getByRole('dialog', { name: 'Abandon this payment?' })).toBe(dialog);
+    await act(async () => answer({ payment: abandonedPayment, result: 'cancelled' }));
+    await waitFor(() => expect(dialog).toHaveTextContent('Payment cancelled; you can pay again now.'));
+    expect(api.find('POST', ABANDON)).toHaveLength(1);
+  });
+});
+
+describe('Abandoning from checkout', () => {
+  /** Checkout answers 409 `checkout_in_progress` first, then opens the payment (201) once the pending one is gone. */
+  function checkoutAfterAbandon(abandon: unknown) {
+    let tries = 0;
+    return renderBilling('/portal/du/billing', {
+      [`GET ${BILLING}`]: withPayments(pendingPayment),
+      [`POST ${CHECKOUT}`]: () => {
+        tries += 1;
+        if (tries === 1) return reply(409, { error: 'checkout_in_progress', message: 'Server text', payment: pendingPayment, redirect_url: null });
+        return reply(201, { payment: renewCheckoutPayment, redirect_url: BKASH_URL });
+      },
+      [`POST ${ABANDON}`]: abandon,
+    });
+  }
+
+  async function abandonFromCheckout() {
     const { user, dialog } = await openRenewCheckout();
     await user.click(within(dialog).getByRole('button', { name: 'Continue to bKash' }));
     const alert = await within(dialog).findByRole('alert');
-    expect(alert).toHaveTextContent('bKash no longer accepts it; wait 10 minutes and try again.');
-    expect(within(alert).queryByRole('button', { name: 'Continue to bKash' })).not.toBeInTheDocument();
-    expect(within(alert).getByRole('button', { name: 'See the pending payment' })).toBeInTheDocument();
+    await user.click(within(alert).getByRole('button', { name: 'Abandon this payment' }));
+    const confirm = await screen.findByRole('dialog', { name: 'Abandon this payment?' });
+    expect(confirm).toHaveTextContent('The bKash payment of ৳4,500 for BdREN AI Suite');
+    await user.click(within(confirm).getByRole('button', { name: 'Abandon payment' }));
+    return { user, dialog, confirm };
+  }
+
+  it('pays again from the same dialog once the pending payment is cancelled', async () => {
+    const open = vi.spyOn(browser, 'open').mockImplementation(() => undefined);
+    const { api } = checkoutAfterAbandon({ payment: abandonedPayment, result: 'cancelled' });
+    const { user, confirm } = await abandonFromCheckout();
+    await waitFor(() => expect(confirm).toHaveTextContent('Payment cancelled; you can pay again now.'));
+    await waitFor(() => expect(within(confirm).getByRole('button', { name: 'Pay again now' })).toHaveFocus());
+    await user.click(within(confirm).getByRole('button', { name: 'Pay again now' }));
+    await waitFor(() => expect(open).toHaveBeenCalledWith(BKASH_URL));
+    expect(api.find('POST', CHECKOUT)).toHaveLength(2);
+    expect(api.find('POST', CHECKOUT)[1].body).toEqual({ package: 'pkg-standard', kind: 'renew' });
+    expect(api.find('POST', ABANDON)).toHaveLength(1);
+    expect(screen.queryByRole('dialog', { name: 'Payment cancelled' })).not.toBeInTheDocument();
+  });
+
+  it('turns the pay button back on when the abandon dialog is closed after a cancel', async () => {
+    const open = vi.spyOn(browser, 'open').mockImplementation(() => undefined);
+    const { api } = checkoutAfterAbandon({ payment: abandonedPayment, result: 'cancelled' });
+    const { user, dialog, confirm } = await abandonFromCheckout();
+    await waitFor(() => expect(confirm).toHaveTextContent('Payment cancelled; you can pay again now.'));
+    await user.click(within(confirm).getByRole('button', { name: 'Done' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Payment cancelled' })).not.toBeInTheDocument());
+    expect(dialog).toHaveTextContent(`Payment cancelled; you can pay again now. ${LATE_PAY}`);
+    expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument();
+    const pay = within(dialog).getByRole('button', { name: 'Continue to bKash' });
+    await waitFor(() => expect(pay).toHaveFocus());
+    await user.click(pay);
+    await waitFor(() => expect(open).toHaveBeenCalledWith(BKASH_URL));
+    expect(api.find('POST', CHECKOUT)).toHaveLength(2);
+  });
+
+  it('shows a payment bKash had already received as paid and does not offer to pay again', async () => {
+    const open = vi.spyOn(browser, 'open').mockImplementation(() => undefined);
+    const { api } = checkoutAfterAbandon({ payment: receivedPayment, result: 'completed' });
+    const { user, dialog, confirm } = await abandonFromCheckout();
+    await waitFor(() => expect(confirm).toHaveTextContent('recorded as paid, receipt BDR-2026-000040'));
+    expect(within(confirm).getByRole('link', { name: /View receipt/ })).toBeInTheDocument();
+    expect(within(confirm).queryByRole('button', { name: 'Pay again now' })).not.toBeInTheDocument();
+    expect(confirm).not.toHaveTextContent(/abandon/i);
+    await user.click(within(confirm).getByRole('button', { name: 'Done' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Payment received' })).not.toBeInTheDocument());
+    expect(dialog).toHaveTextContent('bKash had already received the earlier payment, so it is recorded as paid (receipt BDR-2026-000040).');
+    expect(within(dialog).queryByRole('button', { name: 'Continue to bKash' })).not.toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Done' })).toBeInTheDocument();
+    expect(api.find('POST', CHECKOUT)).toHaveLength(1);
     expect(open).not.toHaveBeenCalled();
+  });
+
+  it('does not offer to pay again when the pending payment had already settled, since it may have been paid', async () => {
+    const open = vi.spyOn(browser, 'open').mockImplementation(() => undefined);
+    const { api } = checkoutAfterAbandon(reply(409, { error: 'not_pending', message: 'Only a pending bKash payment can be abandoned.' }));
+    const { user, dialog, confirm } = await abandonFromCheckout();
+    await waitFor(() => expect(confirm).toHaveTextContent('This payment is no longer pending: it has already settled.'));
+    expect(within(confirm).queryByRole('button', { name: 'Pay again now' })).not.toBeInTheDocument();
+    await waitFor(() => expect(within(confirm).getByRole('button', { name: 'Done' })).toHaveFocus());
+    await user.keyboard('{Enter}');
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Abandon this payment?' })).not.toBeInTheDocument());
+    expect(dialog).toHaveTextContent('The earlier payment had already settled; Payments shows its result. Check it before paying again.');
+    expect(within(dialog).queryByRole('button', { name: 'Continue to bKash' })).not.toBeInTheDocument();
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Done' })).toHaveFocus());
+    expect(api.find('POST', CHECKOUT)).toHaveLength(1);
+    expect(open).not.toHaveBeenCalled();
+  });
+
+  it('keeps checkout blocked while bKash is still confirming the pending payment', async () => {
+    const { api } = checkoutAfterAbandon(reply(409, { error: 'payment_confirming', message: 'Server text' }));
+    const { user, dialog, confirm } = await abandonFromCheckout();
+    await waitFor(() => expect(confirm).toHaveTextContent("bKash approved this payment and we're confirming it"));
+    expect(within(confirm).getByRole('button', { name: 'Check again' })).toBeInTheDocument();
+    await user.click(within(confirm).getByRole('button', { name: 'Keep the payment' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Abandon this payment?' })).not.toBeInTheDocument());
+    expect(within(dialog).queryByRole('button', { name: 'Continue to bKash' })).not.toBeInTheDocument();
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('was started at 19 Nov 2026');
+    expect(api.find('POST', CHECKOUT)).toHaveLength(1);
   });
 });
 
@@ -521,6 +825,37 @@ describe('Scheduled downgrades', () => {
 });
 
 describe('Receipts in history', () => {
+  it("shows BdREN's notes, and labels a late payment that changed no package", async () => {
+    const late: PortalPayment = {
+      ...paidPayment,
+      id: 'pay-late',
+      receipt_number: 'BDR-2026-000041',
+      reference: 'DKJ90PXGQT',
+      bkash: { payment_id: 'TR0011late', trx_id: 'DKJ90PXGQT', payer_account: '********378', status: 'Completed' },
+      notes: 'Paid after a newer purchase of the same apps; no subscription was changed. BdREN refunds it.',
+      applied: false,
+      subscription_id: null,
+    };
+    const cheque: PortalPayment = {
+      ...bankPayment,
+      id: 'pay-cheque',
+      reference: 'CHQ-1102',
+      notes: 'Paid by cheque in two parts; no subscription was changed in the first part.',
+    };
+    renderBilling('/portal/du/billing', { [`GET ${BILLING}`]: withPayments(late, cheque) });
+    const table = await screen.findByRole('table', { name: 'Payments' });
+    const lateRow = within(table).getByText('DKJ90PXGQT').closest('tr') as HTMLElement;
+    expect(lateRow).toHaveTextContent('Note: Paid after a newer purchase of the same apps; no subscription was changed. BdREN refunds it.');
+    expect(within(lateRow).getByText('Not applied to a package')).toBeInTheDocument();
+    expect(within(lateRow).getByRole('link', { name: /Receipt BDR-2026-000041/ })).toBeInTheDocument();
+    const chequeRow = within(table).getByText('CHQ-1102').closest('tr') as HTMLElement;
+    expect(chequeRow).toHaveTextContent('Note: Paid by cheque in two parts; no subscription was changed in the first part.');
+    expect(within(chequeRow).queryByText('Not applied to a package')).not.toBeInTheDocument();
+    const paidRow = within(table).getByText('DKJ70PXGQR').closest('tr') as HTMLElement;
+    expect(paidRow).not.toHaveTextContent('Note:');
+    expect(within(paidRow).queryByText('Not applied to a package')).not.toBeInTheDocument();
+  });
+
   it('offers no receipt for a pending payment', async () => {
     renderBilling('/portal/du/billing', { [`GET ${BILLING}`]: withPayments(pendingPayment) });
     const row = (await screen.findByText('Pending')).closest('tr') as HTMLElement;

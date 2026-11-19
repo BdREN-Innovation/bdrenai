@@ -3,15 +3,20 @@ import { CreditCard } from 'lucide-react';
 import type { ReactNode } from 'react';
 import type { BillingSubscription } from '@/api/types';
 import type { Offer, PortalPayment } from '../types';
-import { KIND_TEXT, OFFER_GROUPS, browser, chargedQuote, isBkashUrl, matchesQuote, periodText, replacedBy, timing } from './rules';
+import type { AbandonTarget, Freed } from './abandon';
+import { KIND_TEXT, LATE_PAY, OFFER_GROUPS, TAKEN, browser, chargedQuote, isBkashUrl, matchesQuote, periodText, replacedBy, timing } from './rules';
 import { Button, Card, Dialog, Notice } from '@/components/ui';
+import { AbandonDialog, useCanPay } from './abandon';
+import { billingErrorMessage } from './errors';
 import { useCheckout } from '../queries';
-import { billingErrorMessage, resumeUrl } from './errors';
 import { ApiError } from '@/api/client';
 import { formatMoney } from '@/lib/format';
 
 const UNSAFE_REDIRECT =
   "bKash sent back a payment page address we don't recognise, so we didn't open it. Nothing was charged. Contact BdREN.";
+
+const NOT_STARTED =
+  "The payment didn't start: it was stopped before bKash's page opened, so nothing was charged. Try again.";
 
 function Detail({ term, children }: { term: string; children: ReactNode }) {
   return (
@@ -36,17 +41,40 @@ interface Changed {
   url: string;
 }
 
+/** The pending payment that blocked checkout, after the admin abandoned it from this dialog. */
+interface Released {
+  how: Freed;
+  payment?: PortalPayment;
+}
+
+function releasedText({ how, payment }: Released): string {
+  if (how === 'completed') {
+    const receipt = payment?.receipt_number ? ` (receipt ${payment.receipt_number})` : '';
+    return `bKash had already received the earlier payment, so it is recorded as paid${receipt}. Check Your packages and Payments before paying again.`;
+  }
+  if (how === 'cancelled') return `Payment cancelled; you can pay again now. ${LATE_PAY}`;
+  if (how === 'failed') return `The earlier payment failed${payment?.failure_reason ? ` (${payment.failure_reason})` : ''}. You can pay again now. ${TAKEN}`;
+  return 'The earlier payment had already settled; Payments shows its result. Check it before paying again.';
+}
+
 /**
  * Confirms the quote, opens the bKash payment once (however often it is clicked) and leaves for bKash's page. When the
  * server charges something else than the confirmed quote, it shows the new charge and asks again before leaving. It
- * can't be closed while the payment is being opened or bKash's page is loading.
+ * can't be closed while the payment is being opened or bKash's page is loading. When another bKash payment is still
+ * pending, it offers to abandon that one and then to pay from this same dialog.
  */
 function CheckoutDialog({ slug, offer, current, onClose, onShowPayment }: CheckoutDialogProps) {
   const checkout = useCheckout(slug);
+  const allowed = useCanPay(slug);
   const sent = useRef(false);
+  const payButton = useRef<HTMLButtonElement>(null);
+  const closeButton = useRef<HTMLButtonElement>(null);
   const [leaving, setLeaving] = useState(false);
   const [blocked, setBlocked] = useState(false);
+  const [notStarted, setNotStarted] = useState(false);
   const [changed, setChanged] = useState<Changed | null>(null);
+  const [abandoning, setAbandoning] = useState<AbandonTarget | null>(null);
+  const [released, setReleased] = useState<Released | null>(null);
   const shown: Offer = changed ? { ...offer, quote: chargedQuote(changed.payment, offer.quote) } : offer;
   const { quote } = shown;
   const amount = formatMoney(quote.amount, quote.currency);
@@ -63,19 +91,27 @@ function CheckoutDialog({ slug, offer, current, onClose, onShowPayment }: Checko
     }
     if (sent.current) return;
     sent.current = true;
+    setNotStarted(false);
+    setReleased(null);
     checkout.mutate(
       { package: offer.package.id, kind: offer.kind },
       {
         onSuccess: (result) => {
-          if (!isBkashUrl(result.redirect_url)) {
+          const url = result.redirect_url;
+          if (url === null) {
+            sent.current = false;
+            setNotStarted(true);
+            return;
+          }
+          if (!isBkashUrl(url)) {
             setBlocked(true);
             return;
           }
           if (!matchesQuote(result.payment, offer.quote)) {
-            setChanged({ payment: result.payment, url: result.redirect_url });
+            setChanged({ payment: result.payment, url });
             return;
           }
-          leave(result.redirect_url);
+          leave(url);
         },
         onError: () => {
           sent.current = false;
@@ -84,72 +120,90 @@ function CheckoutDialog({ slug, offer, current, onClose, onShowPayment }: Checko
     );
   };
 
+  const release = (how: Freed, payment?: PortalPayment) => {
+    checkout.reset();
+    sent.current = false;
+    setReleased({ how, payment });
+  };
+
+  const closeAbandon = () => {
+    setAbandoning(null);
+    window.setTimeout(() => (payButton.current ?? closeButton.current)?.focus(), 50);
+  };
+
+  const payAgain = () => {
+    setAbandoning(null);
+    pay();
+  };
+
   const error = checkout.error;
   const started = error instanceof ApiError && error.code === 'checkout_in_progress' ? error.body.payment : undefined;
-  const resume = resumeUrl(error);
-  const continueOnBkash = (url: string) => {
-    setLeaving(true);
-    browser.open(url);
-  };
+  const maybePaid = released?.how === 'completed' || released?.how === 'settled';
+  const canSubmit = !started && !maybePaid;
   const busy = checkout.isPending || leaving;
 
   return (
-    <Dialog
-      open
-      locked={busy}
-      onOpenChange={(open) => !open && onClose()}
-      title={`Pay ${amount} with bKash`}
-      description="Check what you are paying for. bKash's own page then asks for your bKash number, the code it texts you and your PIN."
-      onSubmit={started ? undefined : pay}
-      footer={
-        <>
-          <Button variant="ghost" onClick={onClose} disabled={busy}>
-            {started ? 'Not now' : 'Cancel'}
-          </Button>
-          {started ? null : (
-            <Button type="submit" variant="primary" loading={busy} disabled={blocked}>
-              {leaving ? 'Opening bKash…' : 'Continue to bKash'}
+    <>
+      <Dialog
+        open
+        locked={busy}
+        onOpenChange={(open) => !open && onClose()}
+        title={`Pay ${amount} with bKash`}
+        description="Check what you are paying for. bKash's own page then asks for your bKash number, the code it texts you and your PIN."
+        onSubmit={canSubmit ? pay : undefined}
+        footer={
+          <>
+            <Button ref={closeButton} variant="ghost" onClick={onClose} disabled={busy}>
+              {started ? 'Not now' : maybePaid ? 'Done' : 'Cancel'}
             </Button>
-          )}
-        </>
-      }
-    >
-      {changed ? (
-        <Notice tone="warning">
-          The price or period changed after this page loaded. This payment is {amount} for {periodText(quote.period_start, quote.period_end)}, not the{' '}
-          {formatMoney(offer.quote.amount, offer.quote.currency)} for {periodText(offer.quote.period_start, offer.quote.period_end)} shown before. Continue
-          to bKash to pay {amount}. If you cancel, you can start another payment in about 10 minutes.
-        </Notice>
-      ) : null}
-      <dl aria-label="Payment summary" className="flex flex-col divide-y divide-stroke-muted text-[13px]">
-        <Detail term="Package">{offer.package.name}</Detail>
-        <Detail term="Apps">{offer.package.apps.map((app) => app.name).join(', ') || '—'}</Detail>
-        <Detail term="Payment for">{KIND_TEXT[offer.kind]}</Detail>
-        <Detail term="Amount">{amount}</Detail>
-        <Detail term="Period">{periodText(quote.period_start, quote.period_end)}</Detail>
-      </dl>
-      <p className="text-[13px] text-ink-muted">{timing(shown, current)}</p>
-      {blocked ? <Notice tone="danger">{UNSAFE_REDIRECT}</Notice> : null}
-      {error ? (
-        <Notice tone="danger">
-          <p>{billingErrorMessage(error, 'checkout', offer.package.name)}</p>
-          {started || resume ? (
-            <div className="mt-2 flex flex-wrap gap-2">
-              {resume ? (
-                <Button size="sm" variant="primary" onClick={() => continueOnBkash(resume)} disabled={leaving}>
-                  Continue to bKash
-                </Button>
-              ) : null}
-              {started ? (
+            {canSubmit ? (
+              <Button ref={payButton} type="submit" variant="primary" loading={busy} disabled={blocked}>
+                {leaving ? 'Opening bKash…' : 'Continue to bKash'}
+              </Button>
+            ) : null}
+          </>
+        }
+      >
+        {changed ? (
+          <Notice tone="warning">
+            The price or period changed after this page loaded. This payment is {amount} for {periodText(quote.period_start, quote.period_end)}, not
+            the {formatMoney(offer.quote.amount, offer.quote.currency)} for {periodText(offer.quote.period_start, offer.quote.period_end)} shown before.
+            Continue to bKash to pay {amount}. If you cancel, you can start another payment in about 10 minutes.
+          </Notice>
+        ) : null}
+        <dl aria-label="Payment summary" className="flex flex-col divide-y divide-stroke-muted text-[13px]">
+          <Detail term="Package">{offer.package.name}</Detail>
+          <Detail term="Apps">{offer.package.apps.map((app) => app.name).join(', ') || '—'}</Detail>
+          <Detail term="Payment for">{KIND_TEXT[offer.kind]}</Detail>
+          <Detail term="Amount">{amount}</Detail>
+          <Detail term="Period">{periodText(quote.period_start, quote.period_end)}</Detail>
+        </dl>
+        <p className="text-[13px] text-ink-muted">{timing(shown, current)}</p>
+        <div aria-live="polite" aria-atomic="true">
+          {released ? <p className="rounded-lg bg-info-bg p-3 text-[13px] font-medium text-info-fg">{releasedText(released)}</p> : null}
+        </div>
+        {blocked ? <Notice tone="danger">{UNSAFE_REDIRECT}</Notice> : null}
+        {notStarted ? <Notice tone="danger">{NOT_STARTED}</Notice> : null}
+        {error ? (
+          <Notice tone="danger">
+            <p>{billingErrorMessage(error, 'checkout', offer.package.name)}</p>
+            {started ? (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {allowed ? (
+                  <Button size="sm" variant="danger" onClick={() => setAbandoning(started)}>
+                    Abandon this payment
+                  </Button>
+                ) : null}
                 <Button size="sm" variant="secondary" onClick={() => onShowPayment(started.id)}>
                   See the pending payment
                 </Button>
-              ) : null}
-            </div>
-          ) : null}
-        </Notice>
-      ) : null}
-    </Dialog>
+              </div>
+            ) : null}
+          </Notice>
+        ) : null}
+      </Dialog>
+      {abandoning ? <AbandonDialog slug={slug} payment={abandoning} onClose={closeAbandon} onFreed={release} onPayAgain={payAgain} /> : null}
+    </>
   );
 }
 

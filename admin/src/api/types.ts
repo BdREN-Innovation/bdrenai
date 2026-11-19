@@ -25,7 +25,7 @@ export interface ApiErrorBody {
   seats?: Seats;
   /** 409 `checkout_in_progress`: the bKash payment already started. */
   payment?: Pick<Payment, 'id' | 'amount' | 'currency' | 'package' | 'status' | 'created_at'>;
-  /** 409 `checkout_in_progress`: bKash's page for that payment while bKash still accepts it, else null. */
+  /** 409 `checkout_in_progress`: always null (bKash checkout pages are single-use); kept for compatibility. */
   redirect_url?: string | null;
 }
 
@@ -674,6 +674,12 @@ export interface Payment {
   payer_name: string;
   payment_date: ISODate | null;
   notes: string;
+  /** false: money recorded without changing any subscription (BdREN refunds it); null: not settled yet. */
+  applied: boolean | null;
+  /** The subscription this payment created or extended; null when not applied. */
+  subscription_id: string | null;
+  /** The subscription a renewal or upgrade was bought for, kept even when not applied; null for a new package. */
+  target_subscription_id: string | null;
   has_attachment: boolean;
   bkash: BkashDetails | null;
   failure_reason: string;

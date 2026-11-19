@@ -246,9 +246,18 @@ export interface PortalBilling {
   downgrades: DowngradeOption[];
 }
 
+/** `redirect_url` is null when the payment was abandoned while checkout was still creating it at bKash. */
 export interface CheckoutResult {
   payment: PortalPayment;
-  redirect_url: string;
+  redirect_url: string | null;
+}
+
+/** What abandoning a pending bKash payment did: bKash had the money (`completed`), or it was closed. */
+export type AbandonOutcome = 'completed' | 'cancelled' | 'failed';
+
+export interface AbandonResult {
+  payment: PortalPayment;
+  result: AbandonOutcome;
 }
 
 /** Where the bKash callback sends the browser back: `?payment=<id>&result=…`. */

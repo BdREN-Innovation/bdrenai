@@ -51,14 +51,21 @@ export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () =>
   );
 }
 
-export function Notice({ tone = 'warning', children }: { tone?: 'warning' | 'info' | 'danger'; children: ReactNode }) {
+interface NoticeProps {
+  tone?: 'warning' | 'info' | 'danger';
+  /** False when the caller keeps the notice inside its own always-mounted live region, so it isn't announced twice. */
+  announce?: boolean;
+  children: ReactNode;
+}
+
+export function Notice({ tone = 'warning', announce = true, children }: NoticeProps) {
   const tones = {
     warning: 'bg-warning-bg text-warning-fg',
     info: 'bg-info-bg text-info-fg',
     danger: 'bg-danger-bg text-danger-fg',
   };
   return (
-    <div role={tone === 'danger' ? 'alert' : 'status'} className={cn('flex items-start gap-2 rounded-lg p-3 text-[13px] font-medium', tones[tone])}>
+    <div role={announce ? (tone === 'danger' ? 'alert' : 'status') : undefined} className={cn('flex items-start gap-2 rounded-lg p-3 text-[13px] font-medium', tones[tone])}>
       <CircleAlert aria-hidden="true" size={16} className="mt-0.5 shrink-0" />
       <div>{children}</div>
     </div>

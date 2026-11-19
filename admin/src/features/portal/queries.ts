@@ -256,15 +256,27 @@ export function usePortalImport(slug: string) {
   });
 }
 
-/** Opens a bKash payment for an offer; the caller sends the browser to `redirect_url`. */
 /**
- * Opens a bKash payment. Billing is re-read whatever the outcome, from the hook so it still happens when the dialog
- * that started the checkout is gone (per-call callbacks don't run after unmount).
+ * Opens a bKash payment for an offer; the caller sends the browser to `redirect_url`. Billing is re-read whatever the
+ * outcome, from the hook so it still happens when the dialog that started the checkout is gone (per-call callbacks
+ * don't run after unmount).
  */
 export function useCheckout(slug: string) {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (body: { package: string; kind: PurchaseKind }) => portalApi(slug).post<t.CheckoutResult>('billing/checkout/', body),
+    onSettled: () => void client.invalidateQueries({ queryKey: portalKeys.billing(slug) }),
+  });
+}
+
+/**
+ * Gives up a pending bKash payment after asking bKash about it (docs/BILLING_API.md, bKash flow step 5). Billing is
+ * re-read whatever the answer, since even an error can mean the payment settled meanwhile.
+ */
+export function useAbandonPayment(slug: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => portalApi(slug).post<t.AbandonResult>(`billing/payments/${enc(id)}/abandon/`),
     onSettled: () => void client.invalidateQueries({ queryKey: portalKeys.billing(slug) }),
   });
 }
